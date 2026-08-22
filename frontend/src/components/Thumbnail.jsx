@@ -1,12 +1,12 @@
 import { cn } from '@/lib/utils';
 
 const CATEGORY_COLORS = {
-  Seating: '#B98A5E',
-  Tables: '#7C8B6F',
-  Lighting: '#D4A76A',
-  Storage: '#9B4F3A',
-  Plants: '#5E8C61',
-  Decor: '#A06A92',
+  Seating: '#3b82f6',
+  Tables: '#5a6c80',
+  Lighting: '#64748b',
+  Storage: '#1e40af',
+  Plants: '#10b981',
+  Decor: '#8b5cf6',
 };
 
 /**
@@ -24,7 +24,7 @@ export default function Thumbnail({ url, label, category, className, rounded = '
     );
   }
 
-  const color = CATEGORY_COLORS[category] || '#B98A5E';
+  const color = CATEGORY_COLORS[category] || '#3b82f6';
   const initial = (label || '?').charAt(0).toUpperCase();
 
   return (

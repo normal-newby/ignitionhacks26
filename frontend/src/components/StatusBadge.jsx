@@ -1,9 +1,9 @@
 import { cn } from '@/lib/utils';
 
 const STYLES = {
-  processing: 'bg-[#F5E6C8] text-[#B98A5E] border-2 border-[#B98A5E]',
-  ready: 'bg-[#F5E6C8] text-[#7C8B6F] border-2 border-[#7C8B6F]',
-  failed: 'bg-[#F5E6C8] text-[#9B4F3A] border-2 border-[#9B4F3A]',
+  processing: 'bg-[#e2e8f0] text-[#3b82f6] border-2 border-[#3b82f6]',
+  ready: 'bg-[#e2e8f0] text-[#10b981] border-2 border-[#10b981]',
+  failed: 'bg-[#e2e8f0] text-[#ef4444] border-2 border-[#ef4444]',
 };
 
 const LABELS = {
@@ -24,9 +24,9 @@ export default function StatusBadge({ status, className }) {
       <span
         className={cn(
           'w-2 h-2',
-          status === 'ready' && 'bg-[#7C8B6F]',
-          status === 'processing' && 'bg-[#B98A5E] animate-pulse',
-          status === 'failed' && 'bg-[#9B4F3A]'
+          status === 'ready' && 'bg-[#10b981]',
+          status === 'processing' && 'bg-[#3b82f6] animate-pulse',
+          status === 'failed' && 'bg-[#ef4444]'
         )}
       />
       {LABELS[status] || status}

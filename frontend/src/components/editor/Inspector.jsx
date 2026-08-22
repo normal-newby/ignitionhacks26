@@ -13,7 +13,7 @@ function NumberField({ label, value, onChange, step = 1, min, max }) {
         min={min}
         max={max}
         onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-        className="w-full px-2 py-1 border-2 border-black bg-[#EDE7DD] font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[#9B4F3A]"
+        className="w-full px-2 py-1 border-2 border-[#1e40af] bg-[#e2e8f0] font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
       />
     </div>
   );
@@ -27,14 +27,14 @@ export default function Inspector({ placedItem, onUpdate, onRemove, onDone }) {
   if (!placedItem) return null;
 
   return (
-    <div className="w-72 flex-shrink-0 border-l-2 border-black bg-[#F5E6C8] flex flex-col h-full animate-fade-in shadow-[-4px_4px_0px_#000]">
+    <div className="w-72 flex-shrink-0 border-l-2 border-[#1e40af] bg-[#e2e8f0] flex flex-col h-full animate-fade-in shadow-[-4px_4px_0px_#1e40af]">
       {/* Header */}
-      <div className="p-4 border-b border-border/40 flex items-start gap-2">
+      <div className="p-4 border-b-2 border-[#1e40af] flex items-start gap-2 bg-[#e2e8f0]">
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-[#5a6c80] mb-1" style={{ fontFamily: '"Press Start 2P"' }}>
             {placedItem.category}
           </p>
-          <h2 className="font-heading text-lg font-medium truncate">
+          <h2 className="font-heading text-lg font-medium truncate text-[#252525]" style={{ fontFamily: '"Press Start 2P"' }}>
             {placedItem.name}
           </h2>
         </div>
@@ -43,18 +43,19 @@ export default function Inspector({ placedItem, onUpdate, onRemove, onDone }) {
         <button
           onClick={onDone}
           title="Done (Esc)"
-          className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-primary text-primary-foreground font-body text-xs font-medium hover:opacity-90 transition-opacity"
+          className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-none bg-[#5a6c80] text-white font-body text-xs font-medium hover:opacity-90 transition-opacity border-2 border-[#1e40af] shadow-[2px_2px_0px_#1e40af] hover:shadow-[1px_1px_0px_#1e40af] active:shadow-none active:translate-x-0.5 active:translate-y-0.5"
+          style={{ fontFamily: '"VT323"' }}
         >
           <Check className="w-3.5 h-3.5" />
-          Done
+          DONE
         </button>
       </div>
 
       {/* Editable fields */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-4 bg-[#F5E6C8]">
+      <div className="flex-1 overflow-y-auto p-3 space-y-4 bg-[#e2e8f0]">
         {/* Position */}
         <div>
-          <h3 className="font-mono text-xs font-bold mb-2 text-black border-b border-black/50 pb-1">
+          <h3 className="font-mono text-xs font-bold mb-2 text-[#252525] border-b border-[#1e40af] pb-1" style={{ fontFamily: '"Press Start 2P"' }}>
             POSITION
           </h3>
           <div className="grid grid-cols-3 gap-1.5">
@@ -84,7 +85,7 @@ export default function Inspector({ placedItem, onUpdate, onRemove, onDone }) {
 
         {/* Rotation */}
         <div>
-          <h3 className="font-mono text-xs font-bold mb-2 text-black border-b border-black/50 pb-1">
+          <h3 className="font-mono text-xs font-bold mb-2 text-[#252525] border-b border-[#1e40af] pb-1" style={{ fontFamily: '"Press Start 2P"' }}>
             ROTATION
           </h3>
           <NumberField
@@ -98,7 +99,7 @@ export default function Inspector({ placedItem, onUpdate, onRemove, onDone }) {
 
         {/* Scale */}
         <div>
-          <h3 className="font-mono text-xs font-bold mb-2 text-black border-b border-black/50 pb-1">
+          <h3 className="font-mono text-xs font-bold mb-2 text-[#252525] border-b border-[#1e40af] pb-1" style={{ fontFamily: '"Press Start 2P"' }}>
             SCALE
           </h3>
           <NumberField
@@ -112,10 +113,11 @@ export default function Inspector({ placedItem, onUpdate, onRemove, onDone }) {
       </div>
 
       {/* Remove button */}
-      <div className="p-3 border-t-2 border-black bg-[#D4A76A]">
+      <div className="p-3 border-t-2 border-[#1e40af] bg-[#cbd5e1]">
         <button
           onClick={() => onRemove(placedItem.id)}
-          className="w-full inline-flex items-center justify-center gap-2 px-2 py-2 border-2 border-[#9B4F3A] bg-[#EDE7DD] text-[#9B4F3A] font-mono text-sm font-bold hover:bg-[#9B4F3A] hover:text-[#F5E6C8] transition-colors active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
+          className="w-full inline-flex items-center justify-center gap-2 px-2 py-2 border-2 border-[#5a6c80] bg-[#e2e8f0] text-[#5a6c80] font-mono text-sm font-bold hover:bg-[#5a6c80] hover:text-white transition-colors active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
+          style={{ fontFamily: '"Press Start 2P"' }}
         >
           <Trash2 className="w-4 h-4" />
           REMOVE FROM ROOM

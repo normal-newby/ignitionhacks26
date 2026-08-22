@@ -4,26 +4,26 @@
 
 @layer base {
     :root {
-        /* Retro 8-bit / 90s OS pixel-art aesthetic */
-        --background: 43 30% 88%;          /* cream #F5E6C8 */
-        --foreground: 30 7% 11%;           /* black #1F1D1B */
-        --card: 36 26% 94%;                /* light tan #F5E6C8 */
-        --card-foreground: 30 7% 11%;
-        --popover: 36 26% 94%;
-        --popover-foreground: 30 7% 11%;
-        --primary: 39 39% 55%;             /* warm brown #B98A5E */
-        --primary-foreground: 38 30% 96%;
-        --secondary: 92 11% 49%;            /* sage green #7C8B6F */
+        /* Retro 8-bit / 90s OS pixel-art aesthetic - Blue/Grey Theme */
+        --background: 216 40% 94%;         /* light blue-grey #e2e8f0 */
+        --foreground: 220 9% 15%;           /* dark grey #252525 */
+        --card: 214 32% 91%;               /* lighter blue-grey #e2e8f0 */
+        --card-foreground: 220 9% 15%;
+        --popover: 214 32% 91%;
+        --popover-foreground: 220 9% 15%;
+        --primary: 217 91% 60%;            /* blue #3b82f6 */
+        --primary-foreground: 0 0% 100%;
+        --secondary: 210 20% 50%;          /* muted blue-grey #5a6c80 */
         --secondary-foreground: 0 0% 98%;
-        --muted: 35 18% 84%;
-        --muted-foreground: 30 5% 42%;
-        --accent: 29 39% 55%;
-        --accent-foreground: 38 30% 96%;
-        --destructive: 13 46% 42%;         /* clay red #9B4F3A */
+        --muted: 210 20% 85%;
+        --muted-foreground: 210 15% 45%;
+        --accent: 210 20% 50%;
+        --accent-foreground: 0 0% 98%;
+        --destructive: 0 84% 60%;          /* red #ef4444 */
         --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 0%;                 /* black #000 */
-        --input: 32 12% 78%;
-        --ring: 29 39% 55%;
+        --border: 217 91% 30%;             /* dark blue #1e40af */
+        --input: 210 20% 80%;
+        --ring: 217 91% 60%;
         --radius: 0rem; /* No rounded corners for retro aesthetic */
 
         --font-heading: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
@@ -31,14 +31,14 @@
         --font-display: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
         --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
-        --sidebar-background: 36 26% 94%;
-        --sidebar-foreground: 30 7% 11%;
-        --sidebar-primary: 29 39% 55%;
-        --sidebar-primary-foreground: 38 30% 96%;
-        --sidebar-accent: 35 18% 84%;
-        --sidebar-accent-foreground: 30 7% 11%;
-        --sidebar-border: 0 0% 0%;
-        --sidebar-ring: 29 39% 55%;
+        --sidebar-background: 214 32% 91%;
+        --sidebar-foreground: 220 9% 15%;
+        --sidebar-primary: 217 91% 60%;
+        --sidebar-primary-foreground: 0 0% 100%;
+        --sidebar-accent: 210 20% 80%;
+        --sidebar-accent-foreground: 220 9% 15%;
+        --sidebar-border: 217 91% 30%;
+        --sidebar-ring: 217 91% 60%;
     }
 }
 

@@ -14,12 +14,12 @@ export default function EditorTopBar({
   saveStatus,
 }) {
   return (
-    <div className="flex items-center justify-between px-3 h-12 border-b-2 border-black bg-[#D4A76A] shadow-[0px_4px_0px_#000]">
+    <div className="flex items-center justify-between px-3 h-12 border-b-2 border-[#1e40af] bg-[#cbd5e1] shadow-[0px_4px_0px_#1e40af]">
       {/* Left: back + editable name */}
       <div className="flex items-center gap-2 min-w-0">
         <Link
           to="/"
-          className="p-1 border-2 border-black hover:bg-[#9B4F3A] hover:text-[#F5E6C8] transition-colors flex-shrink-0 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
+          className="p-1 border-2 border-[#1e40af] hover:bg-[#5a6c80] hover:text-white transition-colors flex-shrink-0 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
           title="Back to projects"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -28,13 +28,13 @@ export default function EditorTopBar({
           type="text"
           value={projectName}
           onChange={(e) => onRename(e.target.value)}
-          className="font-mono text-md font-bold bg-transparent border-none focus:outline-none focus:ring-0 max-w-[240px] truncate text-black uppercase"
+          className="font-mono text-md font-bold bg-transparent border-none focus:outline-none focus:ring-0 max-w-[240px] truncate text-[#252525] uppercase"
+          style={{ fontFamily: '"Press Start 2P"' }}
         />
       </div>
 
-      {/* Right: save status. It sat centred while the export button held the right-hand slot;
-          with that gone, `justify-between` puts it on the end rather than leaving a gap. */}
-      <div className="flex items-center gap-1 text-xs font-mono text-black">
+      {/* Center: save status */}
+      <div className="flex items-center gap-1 text-xs font-mono text-[#252525]" style={{ fontFamily: '"Press Start 2P"' }}>
         {saveStatus === 'saving' ? (
           <>
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -42,16 +42,26 @@ export default function EditorTopBar({
           </>
         ) : saveStatus === 'error' ? (
           <>
-            <AlertCircle className="w-4 h-4 text-[#9B4F3A]" />
-            <span className="text-[#9B4F3A]">ERROR SAVING</span>
+            <AlertCircle className="w-4 h-4 text-[#ef4444]" />
+            <span className="text-[#ef4444]">ERROR SAVING</span>
           </>
         ) : (
           <>
-            <Check className="w-4 h-4 text-[#7C8B6F]" />
+            <Check className="w-4 h-4 text-[#10b981]" />
             <span>ALL CHANGES SAVED</span>
           </>
         )}
       </div>
+
+      {/* Right: export */}
+      <button
+        onClick={onExport}
+        className="inline-flex items-center gap-1 px-2 py-1 border-2 border-[#1e40af] bg-[#e2e8f0] text-[#252525] font-mono text-xs font-bold hover:bg-[#5a6c80] hover:text-white transition-colors active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
+        style={{ fontFamily: '"Press Start 2P"' }}
+      >
+        <Share2 className="w-3.5 h-3.5" />
+        EXPORT VIEW
+      </button>
     </div>
   );
 }
