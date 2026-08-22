@@ -1,0 +1,51 @@
+{
+  "name": "Tour",
+  "type": "object",
+  "properties": {
+    "address": {
+      "type": "string",
+      "title": "Address"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "processing",
+        "published",
+        "failed"
+      ],
+      "default": "processing",
+      "title": "Status"
+    },
+    "video_url": {
+      "type": "string",
+      "title": "Video URL"
+    },
+    "session_id": {
+      "type": "string",
+      "title": "Marble Operation ID"
+    },
+    "world_id": {
+      "type": "string",
+      "title": "Marble World ID"
+    },
+    "search_tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Search Tags"
+    },
+    "estimated_value": {
+      "type": "number",
+      "title": "Estimated Value"
+    },
+    "published_date": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Published Date"
+    }
+  },
+  "required": [
+    "address"
+  ]
+}
