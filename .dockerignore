@@ -1,1 +1,16 @@
+.git
+.gitignore
+.idea
+.vscode
+
+# Host-built artifacts — these must be rebuilt inside the image.
+# frontend/node holds a Windows node.exe locally, which would break the Linux build.
+backend/target
+backend/src/main/resources/static
 frontend/node_modules
+frontend/node
+frontend/dist
+
+# Local secrets — Render supplies these as real env vars.
+backend/.env
+backend/.env.gpg
