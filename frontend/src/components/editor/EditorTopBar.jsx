@@ -1,8 +1,11 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, AlertCircle, Check, Loader2, Share2 } from 'lucide-react';
+import { ArrowLeft, AlertCircle, Check, Loader2, Download } from 'lucide-react';
 
 /**
  * Editor top bar — project name (editable inline), save status, export action.
+ *
+ * Export downloads the room and its layout as a GLB, so the icon is a download rather than a
+ * share, and the button reports progress: the file is written on the main thread.
  *
  * saveStatus is 'saved' | 'saving' | 'error'. The layout is persisted server-side, so a
  * failed write has to be visible: silently claiming "all changes saved" over a dropped
@@ -12,6 +15,7 @@ export default function EditorTopBar({
   projectName,
   onRename,
   saveStatus,
+  exporting = false,
   onExport,
 }) {
   return (
@@ -56,10 +60,16 @@ export default function EditorTopBar({
       {/* Right: export */}
       <button
         onClick={onExport}
-        className="inline-flex items-center gap-1 px-2 py-1 border-2 border-black bg-[#EDE7DD] text-black font-mono text-xs font-bold hover:bg-[#9B4F3A] hover:text-[#F5E6C8] transition-colors active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
+        disabled={exporting}
+        title="Download the room and your layout as a GLB (the photoreal scan can't be included)"
+        className="inline-flex items-center gap-1 px-2 py-1 border-2 border-black bg-[#EDE7DD] text-black font-mono text-xs font-bold hover:bg-[#9B4F3A] hover:text-[#F5E6C8] transition-colors active:translate-x-0.5 active:translate-y-0.5 active:shadow-none disabled:opacity-60 disabled:hover:bg-[#EDE7DD] disabled:hover:text-black"
       >
-        <Share2 className="w-3.5 h-3.5" />
-        EXPORT VIEW
+        {exporting ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : (
+          <Download className="w-3.5 h-3.5" />
+        )}
+        {exporting ? 'EXPORTING…' : 'EXPORT VIEW'}
       </button>
     </div>
   );

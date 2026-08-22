@@ -1,11 +1,15 @@
-import { Suspense, Component, useCallback, useMemo, useRef, useState } from 'react';
+import { Suspense, Component, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { AdaptiveDpr, TransformControls, useGLTF, useProgress } from '@react-three/drei';
 import { Plane, Raycaster, Vector2, Vector3 } from 'three';
+// Bare-ish specifier into three's own examples, which import 'three' the same way the rest of
+// the app does — so Vite still dedupes to one three instance. See the note in CLAUDE.md about
+// what a second copy does to Spark.
+import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import RoomShell from './RoomShell';
 import RoomSplat from './RoomSplat';
 import PlacedModel from './PlacedModel';
-import UnifiedControls from './UnifiedControls';
+import UnifiedControls, { EYE_HEIGHT } from './UnifiedControls';
 
 // Marble's collider meshes are DRACO-compressed, so the room simply will not appear without a
 // decoder. drei defaults to pulling one from gstatic.com at load time; pointing it at our own
@@ -16,24 +20,31 @@ useGLTF.setDecoderPath('/draco/');
 /** RoomShell puts the scanned floor on y=0, so this is the floor for placement purposes. */
 const FLOOR = new Plane(new Vector3(0, 1, 0), 0);
 
-const ORBIT_CAMERA = [3.2, 2.4, 3.6];
+/** Where you're standing when the room opens: on the floor at the origin, facing -Z. */
+const START_POSITION = [0, EYE_HEIGHT, 0];
+
 const GIZMO_MODES = { move: 'translate', rotate: 'rotate', scale: 'scale' };
 
 /** Grid snap steps: 10cm of travel, 15° of turn. */
 const TRANSLATE_SNAP = 0.1;
 const ROTATE_SNAP = (15 * Math.PI) / 180;
 
+/** How far ahead of where you're standing a piece added from the catalog rail lands. */
+const PLACE_DISTANCE = 2;
+
 /**
- * Keeps a handle on the renderer so the drop handler outside the Canvas can turn a mouse
- * position into a point on the floor. r3f state is only reachable from inside the tree.
+ * Keeps a handle on the renderer so the code outside the Canvas — the drop handler, the
+ * export — can reach it. r3f state is only reachable from inside the tree.
  */
 function Bridge({ handle }) {
-    const { camera, gl } = useThree();
-    handle.current = { camera, gl };
+    const { camera, gl, scene } = useThree();
+    handle.current = { camera, gl, scene };
     return null;
 }
 
-/** CameraRig removed - camera positioning handled by UnifiedControls */
+/* No CameraRig here — where you start standing is UnifiedControls' business, along with
+   everything else that moves the camera. START_POSITION above is only the Canvas's initial
+   prop, so the first frame isn't rendered from the origin. */
 
 /**
  * The load progress readout.
@@ -80,8 +91,8 @@ class ModelBoundary extends Component {
  * The 3D editor viewport.
  *
  * Everything is in metres with the scanned floor at y=0 — see RoomShell for how Marble's
- * frame gets mapped onto that. Orbit mode is for arranging; walk mode drops you inside the
- * room at eye height.
+ * frame gets mapped onto that. There is one way to be in the room: standing in it, looking
+ * around with a right-drag. See UnifiedControls for why that isn't OrbitControls.
  */
 export default function RoomScene({
     room,
@@ -92,6 +103,7 @@ export default function RoomScene({
     gridSnap,
     roomMode,
     splatQuality,
+    apiRef,
     onSelectItem,
     onUpdateItem,
     onDropItem,
@@ -113,7 +125,9 @@ export default function RoomScene({
         bumpRegistry((n) => n + 1);
     }, []);
 
-    // Always show gizmo in unified mode
+    // The gizmo is available the whole time now. It used to be orbit-only because a pointer
+    // lock made it unclickable; with the cursor free, left-drag on the gizmo and right-drag to
+    // look never contend for the same button.
     const attached = registry.current.get(selectedId) ?? null;
 
     /** Screen point -> floor point, for dropping a catalog card where the cursor is. */
@@ -142,6 +156,96 @@ export default function RoomScene({
             onDropItem(catalogItemId, floorPointAt(e.clientX, e.clientY));
         }
     };
+
+    /**
+     * Where a piece added by clicking a catalog card should land: on the floor, a couple of
+     * metres ahead of where you're standing.
+     *
+     * The fixed grid near the origin that this replaces was fine to orbit around and useless
+     * to walk in — stand in a corner, click a chair, and it appears somewhere behind you. The
+     * slot number fans successive adds out sideways and then further away, so clicking three
+     * chairs in a row gives three chairs rather than one chair-shaped pile.
+     */
+    const placementPoint = useCallback((slot = 0) => {
+        if (!handle.current) return null;
+        const { camera } = handle.current;
+
+        const forward = new Vector3();
+        camera.getWorldDirection(forward);
+        forward.y = 0;
+        // Looking straight down leaves nothing to aim along; the caller falls back to the grid.
+        if (forward.lengthSq() < 1e-6) return null;
+        forward.normalize();
+
+        const right = new Vector3().crossVectors(forward, camera.up).normalize();
+        const across = ((slot % 5) - 2) * 0.6;
+        const away = PLACE_DISTANCE + Math.floor(slot / 5) * 0.6;
+
+        return new Vector3(
+            camera.position.x + forward.x * away + right.x * across,
+            0,
+            camera.position.z + forward.z * away + right.z * across
+        );
+    }, []);
+
+    /**
+     * The room and everything arranged in it, as a GLB.
+     *
+     * **The photoreal splat can't come along.** glTF has no Gaussian-splat primitive, and
+     * Marble's `.spz` is a separate asset with its own format; the only 3D geometry in this
+     * scene is the collider mesh and the catalog models on top of it. So the export is the
+     * scan's mesh plus the layout — the thing that opens in Blender, and the thing that
+     * actually carries the user's work.
+     *
+     * Only two kinds of root go in, named explicitly rather than handing over the whole scene:
+     * that leaves out the lights, the splat, Spark's renderer object and the gizmo without
+     * having to recognise any of them. The shell is forced visible for the export because it
+     * stops drawing whenever the splat covers it, and an invisible node is one `onlyVisible`
+     * skips.
+     */
+    const exportScene = useCallback(async () => {
+        if (!handle.current) return null;
+        const { scene } = handle.current;
+
+        const shells = [];
+        scene.traverse((object) => {
+            if (object.userData.roomShell) shells.push(object);
+        });
+
+        const roots = [...shells, ...registry.current.values()].filter(Boolean);
+        if (roots.length === 0) return null;
+
+        // Selection rings are editing furniture, not furniture.
+        const hidden = [];
+        roots.forEach((root) => root.traverse((object) => {
+            if (object.userData.hideOnExport && object.visible) {
+                object.visible = false;
+                hidden.push(object);
+            }
+        }));
+        const revealed = shells.filter((shell) => !shell.visible);
+        revealed.forEach((shell) => { shell.visible = true; });
+
+        try {
+            const buffer = await new Promise((resolve, reject) => {
+                new GLTFExporter().parse(roots, resolve, reject, {
+                    binary: true,
+                    onlyVisible: true,
+                });
+            });
+            return new Blob([buffer], { type: 'model/gltf-binary' });
+        } finally {
+            hidden.forEach((object) => { object.visible = true; });
+            revealed.forEach((shell) => { shell.visible = false; });
+        }
+    }, []);
+
+    // Handed up to the editor, which owns the export button and the catalog rail.
+    useEffect(() => {
+        if (!apiRef) return undefined;
+        apiRef.current = { exportScene, placementPoint };
+        return () => { apiRef.current = null; };
+    }, [apiRef, exportScene, placementPoint]);
 
     /**
      * Reads the transform back off the gizmo. Scale is forced uniform: furniture stretched on
@@ -196,7 +300,7 @@ export default function RoomScene({
                 // far was 500 for a room that's 3m across. A 0.05..500 depth range spends
                 // almost all of its precision on empty space and leaves furniture standing on
                 // the floor fighting over the same depth values.
-                camera={{ position: ORBIT_CAMERA, fov: 55, near: 0.05, far: 100 }}
+                camera={{ position: START_POSITION, fov: 55, near: 0.05, far: 100 }}
                 // Capped at 1.5, not the display's full ratio. Splat rendering is fill-rate
                 // bound, so this is the single biggest dial in the scene: a 2x display renders
                 // four times the pixels of a 1x one for a room that is already soft-edged.
@@ -216,7 +320,9 @@ export default function RoomScene({
                 // more usual 0.5 because the dpr cap above already cut resolution once, and
                 // stacking both drops is more softness than the frames are worth.
                 performance={{ min: 0.75 }}
-                onPointerMissed={() => onSelectItem(null)}
+                // Left button only. r3f raises a miss for `contextmenu` too, so without the
+                // guard every right-drag to look around would also drop the selection.
+                onPointerMissed={(e) => e.button === 0 && onSelectItem(null)}
             >
                 <Bridge handle={handle} />
                 <AdaptiveDpr />
@@ -290,16 +396,12 @@ export default function RoomScene({
                     />
                 )}
 
-                <UnifiedControls makeDefault />
+                <UnifiedControls />
             </Canvas>
 
+            {/* The controls hint lives in Viewport, not here: at the bottom centre it sat on
+                top of the Viewfinder's status labels. */}
             <LoadingOverlay />
-
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-none">
-                <p className="font-mono text-[10px] uppercase tracking-wider text-primary/90 bg-background/70 backdrop-blur-sm px-3 py-1 rounded">
-                    WASD to move · EQ to ascend/descend · Left-click drag to rotate · Right-click drag to pan · Scroll to zoom
-                </p>
-            </div>
         </div>
     );
 }

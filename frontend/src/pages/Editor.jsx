@@ -47,8 +47,11 @@ function toApi(patch) {
 }
 
 /**
- * Where a newly added item lands when there's no drop point — a loose grid on the floor, so
- * successive clicks from the catalog rail don't stack on one spot.
+ * Last-resort landing spot for a newly added item — a loose grid around the origin, so
+ * successive clicks from the catalog rail don't stack on one place.
+ *
+ * Normally the viewport answers this instead, with a point on the floor ahead of where you're
+ * standing; this covers the moment before the scene has mounted.
  *
  * Y is 0 because RoomShell lifts the scanned room by Marble's ground-plane offset, putting
  * the real floor on y=0. So `pos_y` means "height above the floor", not a coordinate in
@@ -81,6 +84,9 @@ export default function Editor() {
   const [gridSnap, setGridSnap] = useState(false);
   const [projectName, setProjectName] = useState('');
   const [saveStatus, setSaveStatus] = useState('saved');
+  // Writing a GLB walks every vertex of the scan; on a full room that's a beat or two of
+  // blocked main thread, which needs to look like something other than a dead button.
+  const [exporting, setExporting] = useState(false);
   const [catalog, setCatalog] = useState([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
 
@@ -103,6 +109,12 @@ export default function Editor() {
    * all read the same length and land on top of each other.
    */
   const spawnCountRef = useRef(0);
+  /**
+   * The viewport's two answers to questions only the renderer can answer: where the floor is
+   * in front of the camera, and what the camera currently sees as a PNG. Null until RoomScene
+   * has mounted, so both callers below fall back rather than assume.
+   */
+  const viewportApiRef = useRef(null);
 
   /* ---------------- load ---------------- */
 
@@ -178,9 +190,10 @@ export default function Editor() {
   /* ---------------- mutations ---------------- */
 
   /**
-   * `dropPoint` is where the cursor met the floor, when the item arrived by drag. Falling
-   * back to the spawn grid covers a click from the catalog rail, and a drop aimed above the
-   * horizon where the ray never meets the floor.
+   * `dropPoint` is where the cursor met the floor, when the item arrived by drag. A click on
+   * a catalog card has no cursor position to work from, so it lands on the floor a couple of
+   * metres ahead of where you're standing — the spawn grid is the fallback for a drop aimed
+   * above the horizon, where the ray never meets the floor at all.
    */
   const handleAddItem = useCallback(
     async (catalogItemId, dropPoint) => {
@@ -188,9 +201,14 @@ export default function Editor() {
       if (!catalogItem) return;
 
       pushHistory();
-      const position = dropPoint
-        ? { x: dropPoint.x, y: 0, z: dropPoint.z }
-        : spawnPosition(spawnCountRef.current++);
+      let position;
+      if (dropPoint) {
+        position = { x: dropPoint.x, y: 0, z: dropPoint.z };
+      } else {
+        const slot = spawnCountRef.current++;
+        const ahead = viewportApiRef.current?.placementPoint(slot);
+        position = ahead ? { x: ahead.x, y: 0, z: ahead.z } : spawnPosition(slot);
+      }
 
       await runSave(async () => {
         const created = await addModel(projectId, {
@@ -215,9 +233,10 @@ export default function Editor() {
   const handleSelectItem = useCallback((id) => setSelectedId(id), []);
 
   /**
-   * Escape drops the selection, which is the other half of the Done button. Only in orbit
-   * mode: while walking, Escape belongs to the pointer lock, and stealing it would leave you
-   * captured with no way out.
+   * Escape drops the selection, which is the other half of the Done button. It used to be
+   * orbit-only, because while walking Escape belonged to the pointer lock and stealing it
+   * would have left you captured with no way out. Nothing locks the pointer any more, so it
+   * works throughout.
    */
   // Always allow escape to deselect in unified mode
   useEffect(() => {
@@ -353,9 +372,47 @@ export default function Editor() {
     [projectId, runSave]
   );
 
-  const handleExport = useCallback(() => {
-    navigator.clipboard?.writeText(`${window.location.origin}/editor/${projectId}`);
-  }, [projectId]);
+  /**
+   * Saves the room and its layout to disk as a GLB.
+   *
+   * This used to copy a link to the clipboard, which looked identical whether it worked or
+   * not. A file in Downloads is the same idea with something to show for it — and a GLB, not
+   * a screenshot, because the layout is the work: it opens in Blender or any glTF viewer with
+   * the furniture still where it was put. The scan's photoreal splat can't be part of that;
+   * see RoomScene's exportScene for why.
+   *
+   * The anchor is the only way to name a downloaded file from the browser — `download` on a
+   * synthesised click. It has to be in the document for Firefox to honour the click, and the
+   * object URL has to outlive the click, or the download is cancelled before it starts.
+   */
+  const handleExport = useCallback(async () => {
+    if (exporting) return;
+    setExporting(true);
+
+    try {
+      const blob = await viewportApiRef.current?.exportScene();
+      if (!blob) {
+        console.error('The room had nothing to export yet');
+        return;
+      }
+
+      const slug =
+        projectName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'room';
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${slug}.glb`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      console.error('Export failed', err);
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, projectName]);
 
   /* ---------------- render ---------------- */
 
@@ -376,6 +433,7 @@ export default function Editor() {
         projectName={projectName}
         onRename={handleRename}
         saveStatus={saveStatus}
+        exporting={exporting}
         onExport={handleExport}
       />
       <div className="flex-1 flex min-h-0">
@@ -390,6 +448,7 @@ export default function Editor() {
           roomMode={roomMode}
           splatQuality={splatQuality}
           canUndo={historyRef.current.length > 0}
+          apiRef={viewportApiRef}
           onSetTransformMode={setTransformMode}
           onSetRoomMode={setRoomMode}
           onSetSplatQuality={setSplatQuality}

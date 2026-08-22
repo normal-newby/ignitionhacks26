@@ -1,4 +1,4 @@
-import { Move, RotateCw, Maximize, Grid3x3, Undo2, RotateCw as RotateCcw, Check, Sparkles, Boxes } from 'lucide-react';
+import { Move, RotateCw, Maximize, Grid3x3, Undo2, RotateCcw, Check, Sparkles, Boxes } from 'lucide-react';
 import Viewfinder from '@/components/Viewfinder';
 import RoomScene from './scene/RoomScene';
 
@@ -8,8 +8,6 @@ const TRANSFORM_MODES = [
   { key: 'scale', label: 'Scale', icon: Maximize },
 ];
 
-// NAV_MODES removed - using unified camera controls
-
 const ROOM_MODES = [
   { key: 'splat', label: 'Photoreal scan', icon: Sparkles },
   { key: 'mesh', label: 'Fast mesh', icon: Boxes },
@@ -18,10 +16,9 @@ const ROOM_MODES = [
 /**
  * Centre pane — the 3D viewport.
  *
- * The renderer lives in scene/RoomScene; this is the chrome around it. The toolbar's two
- * halves do different jobs: the transform modes drive the gizmo on the selected piece, and
- * only mean anything in orbit mode, while the nav modes decide whether you're arranging the
- * room from outside or standing in it.
+ * The renderer lives in scene/RoomScene; this is the chrome around it. You're always standing
+ * in the room — the orbit/walk pair this toolbar used to carry is gone, and with the pointer
+ * no longer locked the gizmo works from in there, so the transform modes apply the whole time.
  */
 export default function Viewport({
   room,
@@ -33,6 +30,7 @@ export default function Viewport({
   roomMode,
   splatQuality,
   canUndo,
+  apiRef,
   onSetTransformMode,
   onSetRoomMode,
   onSetSplatQuality,
@@ -43,8 +41,6 @@ export default function Viewport({
   onUpdateItem,
   onDropItem,
 }) {
-  // Always in arranging mode with unified controls
-  const arranging = true;
   const hasSplat = Boolean(room?.splat_url);
   const hasHighRes = Boolean(room?.splat_url_full_res);
 
@@ -60,14 +56,13 @@ export default function Viewport({
         <div className="flex items-center gap-0.5">
           {TRANSFORM_MODES.map((mode) => {
             const Icon = mode.icon;
-            const active = arranging && transformMode === mode.key;
+            const active = transformMode === mode.key;
             return (
               <button
                 key={mode.key}
                 onClick={() => onSetTransformMode(mode.key)}
-                disabled={!arranging}
-                title={arranging ? mode.label : `${mode.label} — switch to orbit to arrange`}
-                className={`p-2 rounded-md transition-colors disabled:opacity-30 ${
+                title={mode.label}
+                className={`p-2 rounded-md transition-colors ${
                   active
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:bg-muted'
@@ -84,9 +79,8 @@ export default function Viewport({
         {/* Grid snap toggle */}
         <button
           onClick={onToggleGridSnap}
-          disabled={!arranging}
           title="Grid snap"
-          className={`p-2 rounded-md transition-colors disabled:opacity-30 ${
+          className={`p-2 rounded-md transition-colors ${
             gridSnap
               ? 'bg-secondary/20 text-secondary'
               : 'text-muted-foreground hover:bg-muted'
@@ -162,11 +156,18 @@ export default function Viewport({
         </button>
       </div>
 
+      {/* Controls hint. Right-drag to look isn't guessable, and it's the only way to turn. */}
+      <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+        <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground bg-card/90 px-3 py-1 rounded border border-border/60">
+          Right-drag to look · WASD to walk · Q/E up-down · Shift to hurry · Scroll to dolly
+        </p>
+      </div>
+
       {/* Viewport canvas with viewfinder */}
       <div className="flex-1 p-4">
         <Viewfinder
           bottomLabels={[
-            { text: arranging ? transformMode : 'walking', dot: true },
+            { text: transformMode, dot: true },
             { text: gridSnap ? 'snap on' : 'snap off' },
             ...(hasSplat
               ? [{ text: roomMode !== 'splat' ? 'mesh' : splatQuality === 'high' ? 'photoreal hd' : 'photoreal' }]
@@ -182,6 +183,7 @@ export default function Viewport({
             gridSnap={gridSnap}
             roomMode={roomMode}
             splatQuality={splatQuality}
+            apiRef={apiRef}
             onSelectItem={onSelectItem}
             onUpdateItem={onUpdateItem}
             onDropItem={onDropItem}
@@ -198,7 +200,7 @@ export default function Viewport({
 
           {/* Done — the way out of the gizmo. Clicking empty space and Escape both work too,
               but neither is discoverable while you're mid-drag with a piece selected. */}
-          {selectedId && arranging && (
+          {selectedId && (
             <div className="absolute bottom-3 right-3">
               <button
                 onClick={() => onSelectItem(null)}
@@ -212,7 +214,7 @@ export default function Viewport({
           )}
 
           {/* Scene list — clicking a small model in 3D is fiddly; this is the reliable way. */}
-          {placedItems.length > 0 && arranging && (
+          {placedItems.length > 0 && (
             <div className="absolute bottom-3 left-3 max-w-[220px]">
               <div className="bg-card/90 rounded-md border border-border/60 shadow-sm overflow-hidden">
                 <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-1.5 border-b border-border/40">
