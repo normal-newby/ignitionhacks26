@@ -8,20 +8,15 @@ import CustomImage from './Image'
 function App() {
   //const [count, setCount] = useState(0)
 
-
-  /*
-  TODO
-  - need way to store marble api operation id upon creation
-   */
-
-  const marbleApiKey = ''
+  const marbleApiKey = import.meta.env.VITE_WORLD_LABS_API_KEY
+  const marbleApiKeyTest = import.meta.env.VITE_WORLD_LABS_API_KEY_TEST
 
   async function testMarblePost() {
     const response = await fetch('https://api.worldlabs.ai/marble/v1/worlds:generate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'WLT-Api-Key': marbleApiKey
+        'WLT-Api-Key': marbleApiKeyTest
       },
       body: JSON.stringify({
         display_name: 'Mystical Forest',
@@ -37,23 +32,10 @@ function App() {
   }
 
   async function testMarbleGet() {
-    const response = await fetch('https://api.worldlabs.ai/marble/v1/operations/24826b1d-0caa-480c-8dd1-936a32f4989a', {
-      method: 'GET',
-      headers: {
-        'WLT-Api-Key': marbleApiKey
-      }
-    });
-
-    const data = await response.json();
-
-    console.log(data);
-  }
-
-  async function testMarbleGet() {
     const response = await fetch('https://api.worldlabs.ai/marble/v1/operations/20bffbb1-4ba7-453f-a116-93eaw1a6843e', {
       method: 'GET',
       headers: {
-        'WLT-Api-Key': 'zdtjd5AyINg7KjXB2l2J66qKYFRjrmcd'
+        'WLT-Api-Key': marbleApiKeyTest
       }
     });
 
