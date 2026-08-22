@@ -1,37 +1,75 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import TagInput from '@/components/TagInput';
-import { publishTour } from '@/api/tours';
-import { Upload, Loader2, ArrowLeft } from 'lucide-react';
+import { publishTour, uploadTourFrames } from '@/api/tours';
+import { extractFramesFromVideo, prepareImageFiles, MAX_FRAMES } from '@/lib/extract-frames';
+import { Upload, Loader2, ArrowLeft, Video, Images } from 'lucide-react';
+
+const MODES = [
+  { id: 'video', label: 'Video walk-through', icon: Video },
+  { id: 'photos', label: 'Photos', icon: Images },
+];
 
 export default function PublishTour() {
   const navigate = useNavigate();
+  const [mode, setMode] = useState('video');
   const [address, setAddress] = useState('');
   const [estimatedValue, setEstimatedValue] = useState('');
   const [videoFile, setVideoFile] = useState(null);
+  const [photoFiles, setPhotoFiles] = useState([]);
   const [searchTags, setSearchTags] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState('');
+  const [error, setError] = useState('');
+
+  const hasUpload = mode === 'video' ? !!videoFile : photoFiles.length > 0;
+  const canSubmit = address.trim() && hasUpload && !submitting;
+
+  const switchMode = (next) => {
+    setMode(next);
+    setVideoFile(null);
+    setPhotoFiles([]);
+    setError('');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!address.trim() || !videoFile) return;
+    if (!canSubmit) return;
     setSubmitting(true);
+    setError('');
+
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: videoFile });
-      const result = await publishTour({
+      // Frames are sampled here in the browser, so the original video is never
+      // uploaded — only the handful of stills Marble actually needs.
+      setProgress('Preparing frames...');
+      const onProgress = (done, total) => setProgress(`Preparing frames... ${done}/${total}`);
+      const frames =
+        mode === 'video'
+          ? await extractFramesFromVideo(videoFile, { onProgress })
+          : await prepareImageFiles(photoFiles, { onProgress });
+
+      if (frames.length === 0) {
+        throw new Error('No usable frames could be read from that upload.');
+      }
+
+      setProgress('Creating tour...');
+      const { tour_id } = await publishTour({
         address: address.trim(),
-        video_url: file_url,
+        video_url: null,
         search_tags: searchTags,
         estimated_value: estimatedValue ? Number(estimatedValue) : null,
       });
-      navigate(
-        `/processing?id=${result.tour_id}&address=${encodeURIComponent(address.trim())}`
-      );
-    } catch {
+
+      setProgress(`Uploading ${frames.length} frames...`);
+      await uploadTourFrames(tour_id, frames);
+
+      navigate(`/processing?id=${tour_id}&address=${encodeURIComponent(address.trim())}`);
+    } catch (err) {
+      setError(err?.message || 'Something went wrong. Please try again.');
+      setProgress('');
       setSubmitting(false);
     }
   };
@@ -46,7 +84,8 @@ export default function PublishTour() {
       </Link>
       <h1 className="text-3xl font-semibold tracking-tight mb-2">Publish a 3D tour</h1>
       <p className="text-muted-foreground mb-8">
-        Upload a video walk-through of the property. We'll generate an interactive 3D world from your footage.
+        Upload a video walk-through or a set of photos. We&apos;ll generate an interactive 3D
+        world from your footage.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-8">
@@ -60,24 +99,71 @@ export default function PublishTour() {
           />
         </div>
 
-        <div className="space-y-2">
-          <Label>Video walk-through</Label>
-          <div className="border-2 border-dashed border-border/60 rounded-xl p-8 text-center hover:border-primary/50 transition-colors">
-            <input
-              type="file"
-              accept="video/*"
-              onChange={(e) => setVideoFile(e.target.files?.[0] || null)}
-              className="hidden"
-              id="video-upload"
-            />
-            <label htmlFor="video-upload" className="cursor-pointer block">
-              <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm font-medium">
-                {videoFile ? videoFile.name : 'Click to upload a video'}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">MP4, MOV, or WebM</p>
-            </label>
+        <div className="space-y-3">
+          <Label>Source footage</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {MODES.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => switchMode(id)}
+                aria-pressed={mode === id}
+                className={`flex items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+                  mode === id
+                    ? 'border-primary bg-primary/5 text-foreground'
+                    : 'border-border/60 text-muted-foreground hover:border-primary/40'
+                }`}
+              >
+                <Icon className="w-4 h-4" /> {label}
+              </button>
+            ))}
           </div>
+
+          <div className="border-2 border-dashed border-border/60 rounded-xl p-8 text-center hover:border-primary/50 transition-colors">
+            {mode === 'video' ? (
+              <>
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={(e) => setVideoFile(e.target.files?.[0] || null)}
+                  className="hidden"
+                  id="video-upload"
+                />
+                <label htmlFor="video-upload" className="cursor-pointer block">
+                  <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm font-medium">
+                    {videoFile ? videoFile.name : 'Click to upload a video'}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">MP4, MOV, or WebM</p>
+                </label>
+              </>
+            ) : (
+              <>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => setPhotoFiles(Array.from(e.target.files || []))}
+                  className="hidden"
+                  id="photo-upload"
+                />
+                <label htmlFor="photo-upload" className="cursor-pointer block">
+                  <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm font-medium">
+                    {photoFiles.length > 0
+                      ? `${photoFiles.length} photo${photoFiles.length === 1 ? '' : 's'} selected`
+                      : 'Click to upload photos'}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">JPEG, PNG, or WebP</p>
+                </label>
+              </>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {mode === 'video'
+              ? `We sample up to ${MAX_FRAMES} frames from the video in your browser — the video itself is never uploaded.`
+              : `Upload as many as you like; we use up to ${MAX_FRAMES}, spread evenly across the set.`}
+          </p>
         </div>
 
         <div className="space-y-2">
@@ -105,15 +191,16 @@ export default function PublishTour() {
           />
         </div>
 
-        <Button
-          type="submit"
-          disabled={submitting || !address.trim() || !videoFile}
-          className="w-full"
-          size="lg"
-        >
+        {error && (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        )}
+
+        <Button type="submit" disabled={!canSubmit} className="w-full" size="lg">
           {submitting ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin mr-2" /> Publishing...
+              <Loader2 className="w-4 h-4 animate-spin mr-2" /> {progress || 'Publishing...'}
             </>
           ) : (
             'Publish tour'
