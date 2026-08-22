@@ -173,6 +173,8 @@ public class RoomService {
         room.setWorldId(assets.worldId());
         room.setColliderMeshUrl(assets.colliderMeshUrl());
         room.setSplatUrl(assets.splatUrl());
+        room.setSplatUrl100k(assets.splatUrl100k());
+        room.setSplatUrlFullRes(assets.splatUrlFullRes());
         room.setThumbnailUrl(assets.thumbnailUrl());
         room.setPanoUrl(assets.panoUrl());
         room.setWorldMarbleUrl(assets.worldMarbleUrl());

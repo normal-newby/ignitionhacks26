@@ -55,9 +55,22 @@ public class RoomEntity {
     @Column(name = "collider_mesh_url", length = 2048)
     private String colliderMeshUrl;
 
-    /** SPZ Gaussian splat, 500k tier — the good-looking option when we want it. */
+    /** SPZ Gaussian splat, 500k tier — the editor's default photoreal room. */
     @Column(name = "splat_url", length = 2048)
     private String splatUrl;
+
+    /**
+     * The other two SPZ tiers. Stored because the tiers have unrelated file names — the
+     * 100k and full_res URLs can't be spelled from the 500k one, they 404 — so without
+     * keeping them the only way back to a higher-detail splat is to ask Marble for the
+     * operation again. Null on rooms generated before we started storing them, until
+     * {@code SplatBackfillService} fills them in.
+     */
+    @Column(name = "splat_url_100k", length = 2048)
+    private String splatUrl100k;
+
+    @Column(name = "splat_url_full_res", length = 2048)
+    private String splatUrlFullRes;
 
     @Column(name = "thumbnail_url", length = 2048)
     private String thumbnailUrl;

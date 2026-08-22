@@ -16,4 +16,10 @@ public interface RoomRepository extends JpaRepository<RoomEntity, UUID> {
     List<RoomEntity> findByStatusInAndOperationIdIsNotNull(Collection<RoomStatus> statuses);
 
     List<RoomEntity> findAllByOrderByCreatedAtDesc();
+
+    /**
+     * Rooms finished before we started keeping every SPZ tier. Their operation is still on
+     * record, so the missing URLs can be fetched back rather than regenerated.
+     */
+    List<RoomEntity> findByStatusAndOperationIdIsNotNullAndSplatUrlFullResIsNull(RoomStatus status);
 }

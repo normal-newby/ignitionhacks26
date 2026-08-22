@@ -21,6 +21,8 @@ public record MarbleAssets(
         String worldId,
         String colliderMeshUrl,
         String splatUrl,
+        String splatUrl100k,
+        String splatUrlFullRes,
         String thumbnailUrl,
         String panoUrl,
         String worldMarbleUrl,
@@ -30,7 +32,7 @@ public record MarbleAssets(
 ) {
 
     private static final MarbleAssets EMPTY =
-            new MarbleAssets(null, null, null, null, null, null, null, null, null);
+            new MarbleAssets(null, null, null, null, null, null, null, null, null, null, null);
 
     public static MarbleAssets from(JsonNode response) {
         if (response == null || response.isNull()) {
@@ -41,11 +43,18 @@ public record MarbleAssets(
         JsonNode splats = path(assets, "splats");
         JsonNode semantics = path(splats, "semantics_metadata");
 
+        JsonNode spzUrls = path(splats, "spz_urls");
+
         return new MarbleAssets(
                 text(response, "id"),
                 text(path(assets, "mesh"), "collider_mesh_url"),
-                // 500k is the middle tier: good enough to look at, small enough to stream.
-                text(path(splats, "spz_urls"), "500k"),
+                // 500k is the middle tier and the default: good enough to look at, small
+                // enough to stream. The other two are kept so the editor can trade detail
+                // against download size without us having to ask Marble again — the tiers
+                // have unrelated file names, so one URL can't be derived from another.
+                text(spzUrls, "500k"),
+                text(spzUrls, "100k"),
+                text(spzUrls, "full_res"),
                 text(assets, "thumbnail_url"),
                 text(path(assets, "imagery"), "pano_url"),
                 text(response, "world_marble_url"),

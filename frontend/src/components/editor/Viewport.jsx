@@ -1,4 +1,4 @@
-import { Move, RotateCw, Maximize, Grid3x3, Undo2, RotateCcw, Orbit, Footprints, Check } from 'lucide-react';
+import { Move, RotateCw, Maximize, Grid3x3, Undo2, RotateCcw, Orbit, Footprints, Check, Sparkles, Boxes } from 'lucide-react';
 import Viewfinder from '@/components/Viewfinder';
 import RoomScene from './scene/RoomScene';
 
@@ -11,6 +11,11 @@ const TRANSFORM_MODES = [
 const NAV_MODES = [
   { key: 'orbit', label: 'Orbit the room', icon: Orbit },
   { key: 'walk', label: 'Walk around inside', icon: Footprints },
+];
+
+const ROOM_MODES = [
+  { key: 'splat', label: 'Photoreal scan', icon: Sparkles },
+  { key: 'mesh', label: 'Fast mesh', icon: Boxes },
 ];
 
 /**
@@ -29,9 +34,13 @@ export default function Viewport({
   transformMode,
   gridSnap,
   navMode,
+  roomMode,
+  splatQuality,
   canUndo,
   onSetTransformMode,
   onSetNavMode,
+  onSetRoomMode,
+  onSetSplatQuality,
   onToggleGridSnap,
   onUndo,
   onResetRoom,
@@ -40,6 +49,8 @@ export default function Viewport({
   onDropItem,
 }) {
   const arranging = navMode === 'orbit';
+  const hasSplat = Boolean(room?.splat_url);
+  const hasHighRes = Boolean(room?.splat_url_full_res);
 
   return (
     <div className="flex-1 relative flex flex-col bg-background min-w-0">
@@ -110,6 +121,53 @@ export default function Viewport({
 
         <div className="w-px h-6 bg-border/60 mx-1" />
 
+        {/* Photoreal splat vs fast mesh. Hidden when the room has no splat — an older room,
+            or one whose generation predates us storing the URL. */}
+        {hasSplat && (
+          <>
+            <div className="flex items-center gap-0.5">
+              {ROOM_MODES.map((mode) => {
+                const Icon = mode.icon;
+                const active = roomMode === mode.key;
+                return (
+                  <button
+                    key={mode.key}
+                    onClick={() => onSetRoomMode(mode.key)}
+                    title={mode.label}
+                    className={`p-2 rounded-md transition-colors ${
+                      active
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Detail tier, only meaningful while the splat is showing. full_res is a much
+                bigger download, so it stays opt-in rather than the default. */}
+            {roomMode === 'splat' && hasHighRes && (
+              <button
+                onClick={() => onSetSplatQuality(splatQuality === 'high' ? 'balanced' : 'high')}
+                title={splatQuality === 'high'
+                  ? 'Full-resolution splat — switch back to the lighter one'
+                  : 'Load the full-resolution splat (slower)'}
+                className={`px-2 py-1.5 rounded-md font-mono text-[10px] font-medium tracking-wider transition-colors ${
+                  splatQuality === 'high'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                HD
+              </button>
+            )}
+
+            <div className="w-px h-6 bg-border/60 mx-1" />
+          </>
+        )}
+
         {/* Undo + Reset */}
         <button
           onClick={onUndo}
@@ -134,6 +192,9 @@ export default function Viewport({
           bottomLabels={[
             { text: arranging ? transformMode : 'walking', dot: true },
             { text: gridSnap ? 'snap on' : 'snap off' },
+            ...(hasSplat
+              ? [{ text: roomMode !== 'splat' ? 'mesh' : splatQuality === 'high' ? 'photoreal hd' : 'photoreal' }]
+              : []),
           ]}
         >
           <RoomScene
@@ -144,6 +205,8 @@ export default function Viewport({
             transformMode={transformMode}
             gridSnap={gridSnap}
             navMode={navMode}
+            roomMode={roomMode}
+            splatQuality={splatQuality}
             onSelectItem={onSelectItem}
             onUpdateItem={onUpdateItem}
             onDropItem={onDropItem}

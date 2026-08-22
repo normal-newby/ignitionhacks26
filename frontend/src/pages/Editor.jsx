@@ -74,6 +74,11 @@ export default function Editor() {
   const [selectedId, setSelectedId] = useState(null);
   const [transformMode, setTransformMode] = useState('move');
   const [navMode, setNavMode] = useState('orbit');
+  // Photoreal by default — it's the whole point of scanning the room. The mesh is one click
+  // away for anyone whose machine struggles with half a million splats.
+  const [roomMode, setRoomMode] = useState('splat');
+  // 'balanced' is Marble's 500k tier. full_res is a much larger download, so it's opt-in.
+  const [splatQuality, setSplatQuality] = useState('balanced');
   const [gridSnap, setGridSnap] = useState(false);
   const [projectName, setProjectName] = useState('');
   const [saveStatus, setSaveStatus] = useState('saved');
@@ -375,9 +380,13 @@ export default function Editor() {
           transformMode={transformMode}
           gridSnap={gridSnap}
           navMode={navMode}
+          roomMode={roomMode}
+          splatQuality={splatQuality}
           canUndo={historyRef.current.length > 0}
           onSetTransformMode={setTransformMode}
           onSetNavMode={setNavMode}
+          onSetRoomMode={setRoomMode}
+          onSetSplatQuality={setSplatQuality}
           onToggleGridSnap={() => setGridSnap((v) => !v)}
           onUndo={handleUndo}
           onResetRoom={handleResetRoom}

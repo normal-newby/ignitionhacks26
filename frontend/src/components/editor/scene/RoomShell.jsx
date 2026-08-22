@@ -6,18 +6,23 @@ import { Box3, MeshBasicMaterial } from 'three';
  * The scanned room itself — Marble's collider mesh.
  *
  * Put into a scene where a metre is a metre and the floor is y=0, so every other number in
- * the editor reads as a real-world measurement. `metric_scale_factor` does the first half:
- * the test scan measures 3.262 native units tall, which at its factor of 0.862 is a 2.81m
+ * the editor reads as a real-world measurement. `metric_scale_factor` does part of it: the
+ * test scan measures 3.262 native units tall, which at its factor of 0.862 is a 2.81m
  * floor-to-ceiling room — right for a real room, so the factor is doing what it claims.
  *
- * The floor height is the mesh's own lowest point rather than Marble's `ground_plane_offset`,
- * which is a deliberate departure from what that field is meant for. On the test scan the
- * mesh bottoms out at -1.267 native units while the offset reads 1.610; under either scaling
- * convention that's ~30cm apart, and following the offset drops every piece of furniture
- * through the floor. The likely reason is that the offset ships under the *splats'*
- * `semantics_metadata` and describes the splat frame, which needn't match the collider mesh's.
- * The lowest point of a room scan is its floor, so measuring is both simpler and reliable
- * here; the offset stays as a fallback for a mesh with no usable bounds.
+ * **Marble's frame is Y-down**, hence the 180° flip about X. This is easy to get backwards
+ * and both assets look plausible upside down — a floor and a ceiling are both big flat
+ * horizontal surfaces. What settles it is the lighting baked into the scan: on the test room
+ * the brightest 0.1% of splats sit at y≈-0.64, hard against the surface at -0.8, while the
+ * darkest gather at y≈+1.5. The bright band is a ceiling light and shadow pools low, so the
+ * surface at -0.8 is the ceiling and the floor is the *largest* y. See RoomSplat, where the
+ * same test is what fixed this.
+ *
+ * The floor height is measured off the mesh rather than taken from `ground_plane_offset`. On
+ * the test scan that field reads 1.610 while the mesh's floor is at 1.719 metric — 11cm out,
+ * enough to leave furniture hovering. It ships under the *splats'* `semantics_metadata`, so
+ * it likely describes a frame that isn't quite the mesh's. It stays as a fallback for a mesh
+ * with no usable bounds.
  *
  * Clicking the shell clears the selection — it's empty space as far as the editor is
  * concerned. Nothing here is editable: Marble's output is a single fused mesh with no
@@ -55,11 +60,12 @@ export default function RoomShell({ url, groundPlaneOffset = 0, metricScaleFacto
   }, [scene]);
 
   const floorLift = useMemo(() => {
-    // setFromObject walks node transforms, so this is the real world-space floor, not just
-    // the raw POSITION accessor bounds.
+    // setFromObject walks node transforms, so this is the real floor, not just the raw
+    // POSITION accessor bounds. max, not min: Marble's frame is Y-down, so the floor is the
+    // largest y. The 180° flip below then turns that into a world floor at y=0.
     const box = new Box3().setFromObject(model);
-    return Number.isFinite(box.min.y)
-      ? -box.min.y * metricScaleFactor
+    return Number.isFinite(box.max.y)
+      ? box.max.y * metricScaleFactor
       : groundPlaneOffset * metricScaleFactor;
   }, [model, metricScaleFactor, groundPlaneOffset]);
 
@@ -67,6 +73,7 @@ export default function RoomShell({ url, groundPlaneOffset = 0, metricScaleFacto
     <primitive
       object={model}
       scale={metricScaleFactor}
+      rotation={[Math.PI, 0, 0]}
       position={[0, floorLift, 0]}
       onClick={onClick}
     />

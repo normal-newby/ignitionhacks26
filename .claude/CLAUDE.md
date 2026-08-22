@@ -61,19 +61,24 @@ Then poll `GET /marble/v1/operations/{operation_id}` until `done:true`. Generati
 **~5 minutes**, so this is a polled UX end to end: the browser polls our API, and
 `RoomPollingService` polls Marble on a fixed interval. Nothing holds a long request open.
 
+Operations stay readable after they finish, which is what `SplatBackfillService` relies on: at
+startup it re-reads the operation for any READY room missing `splat_url_full_res` and stores
+the tiers it finds. That's the recovery path for rooms generated before all three were kept —
+no regeneration, no 5-minute wait. It's guarded by that null check, so it does nothing once
+filled and makes no Marble calls on a normal boot; verified by restarting.
+
 The completed operation's `response` carries `assets.mesh.collider_mesh_url` (GLB, ~3-4MB —
 this is the base scene the editor loads), `assets.splats.spz_urls.{100k,500k,full_res}`,
 `assets.thumbnail_url`, `assets.imagery.pano_url`, `assets.caption`, and
 `assets.splats.semantics_metadata.{ground_plane_offset, metric_scale_factor}`.
 
-**`ground_plane_offset` does not describe the collider mesh.** This was the plan and it's
-wrong in practice: on the test scan the mesh bottoms out at -1.267 native units while the
-offset reads 1.610, and applying it puts the floor **29.5cm** out — every piece of furniture
-buried in the floor. It ships under `assets.splats.semantics_metadata`, so it most likely
-describes the splat frame, which needn't match the mesh's. `RoomShell` takes the floor from
-the mesh's own `Box3` minimum instead and keeps the offset only as a fallback for a mesh with
-no usable bounds. `metric_scale_factor` *is* trustworthy: 3.262 native units × 0.862 = a 2.81m
-floor-to-ceiling room, which is right.
+**`ground_plane_offset` does not describe the collider mesh.** On the test scan the mesh's
+floor sits at 1.719 metric while the offset reads 1.610 — 11cm out, enough to leave furniture
+hovering. It ships under `assets.splats.semantics_metadata`, so it most likely describes a
+frame that isn't quite the mesh's. `RoomShell` measures the floor off the mesh's own `Box3`
+instead (the **max**, since the frame is Y-down — see the renderer section) and keeps the
+offset only as a fallback for a mesh with no usable bounds. `metric_scale_factor` *is*
+trustworthy: 3.262 native units × 0.862 = a 2.81m floor-to-ceiling room, which is right.
 
 **Open verification item:** whether Marble's hosted asset URLs are permanent or expire.
 Test early — generate one world, wait a few hours, confirm the URL still resolves. If it
@@ -85,7 +90,11 @@ store our own URL). Don't build that fallback preemptively.
 - **`rooms`** — one uploaded video → one Marble world → one furnishable room. Holds `name`,
   `status`, `media_asset_id`, `operation_id`, `world_id`, the asset URLs,
   `ground_plane_offset`, `metric_scale_factor`, `progress_message`, `error_message`,
-  timestamps.
+  timestamps. All three SPZ tiers are stored (`splat_url` = 500k, plus `splat_url_100k` and
+  `splat_url_full_res`) because **the tiers have unrelated file names** — full_res is
+  `<a-different-uuid>_ceramic.spz`, not the 500k URL with a suffix swapped, and guessing 404s.
+  Without keeping them the only route back to a higher tier is re-reading the operation.
+  `splat_url_100k` is stored but not yet exposed on `RoomResponse`; nothing consumes it.
 - **`models`** — the user-editable layout: one catalog model placed in a room. `room_id` FK,
   many models per room. Carries `catalog_id`, `pos_x/pos_y/pos_z` (metres, `pos_y` = height
   above the floor, since `RoomShell` puts the scanned floor on y=0), `rotation_y` (degrees,
@@ -207,6 +216,7 @@ Marble's frame gets mapped onto that, and why the mapping isn't the documented o
 - `RoomScene` — the Canvas: lights, controls, drop handling, and the one `TransformControls`
   gizmo, attached by object reference to whichever piece is selected. Models register their
   group in a ref map so the gizmo can find them.
+- `RoomSplat` — the photoreal room, Marble's Gaussian splat rendered with Spark. See below.
 - `RoomShell` — the Marble scan. Not editable, and clicking it clears the selection. It
   **replaces the material**, which is not optional: the mesh ships as bare geometry with
   `COLOR_0` vertex colours, `materials: []` and no textures, so glTF hands it the spec's
@@ -239,12 +249,45 @@ The mesh is ~5MB and takes a good few seconds; the loading percentage comes from
 `useProgress`.
 
 **The collider mesh is low-poly by design** — 103k vertices / 206k triangles for a whole room,
-which is why the scan looks soft and blobby no matter what the material does. It's built for
-collision, not for looking at. The photoreal asset is the Gaussian splat under
-`assets.splats.spz_urls` (already stored as `splat_url` and exposed on `RoomResponse`), which
-would need an `.spz`-capable renderer — Spark, or converting to a format
-`@mkkellogg/gaussian-splats-3d` reads. That's a real addition, not a tweak; don't start it
-without agreeing the trade-off first.
+so it always looks soft. It's built for collision, not for looking at. `RoomSplat` renders the
+photoreal alternative, Marble's 500k-splat `.spz`, via Spark (`@sparkjsdev/spark`). The
+toolbar switches between them; splat is the default and mesh is the escape hatch for a machine
+that can't keep up.
+
+**The mesh renders in both modes.** It's what a click on empty space hits to clear the
+selection, and the fallback when a splat won't load; under the splat it just isn't visible.
+
+Facts about the splat path, each measured against a real scan rather than assumed:
+
+- **Spark is pinned to 0.1.10.** 2.x requires `three >= 0.180`, and three is held at 0.171 by
+  drei 9 / r3f 8, which React 18 caps. 0.1.10 declares no `three` peer at all and works.
+- **Marble's frame is Y-down — both assets need a 180° flip about X.** This is the single
+  easiest thing to get wrong here, and it was wrong for a while: a floor and a ceiling are
+  both large flat horizontal surfaces, so an upside-down room looks entirely plausible until
+  someone notices the light fitting underfoot. Neither density nor bounds nor
+  `ground_plane_offset` settles it. **What settles it is the lighting baked into the scan:**
+  the brightest 0.1% of splats sit at y≈-0.64, hard against the surface at -0.8, while the
+  darkest average y≈+1.5. Ceiling lights are the brightest thing in a room and shadow pools
+  low, so -0.8 is the ceiling and the floor is the largest y. After the fix the brightest
+  splats land at world y=2.54 under a 2.66m ceiling, which is where a light belongs. Re-run
+  that check on a new scan before trusting any orientation change.
+- **Do not apply `metric_scale_factor` to the splat.** Unlike the mesh it already measures
+  ~2.75m floor to ceiling. Scaling it too would shrink the room to 2.37m.
+- **The floor is the densest 10cm band *above* the median, not the densest band overall.**
+  The test scan's ceiling holds 168k splats to the floor's 62k, so "densest band" alone finds
+  the ceiling. Bounds are no better: floaters push the box to y=10.2 in a 2.75m room.
+- **Detail tiers.** `splat_url` is Marble's 500k tier (7.6MB) and the default; the HD button
+  swaps in `splat_url_full_res` (27.9MB, 1.92M splats). Both land the floor at y=0 and the
+  ceiling at 2.661m on the test scan, so toggling doesn't move the room. `RoomScene` keys the
+  splat on its URL, so changing tier rebuilds rather than swapping a URL under live GPU
+  buffers, and falls back to 500k whenever full_res is absent.
+- **Splats and furniture occlude each other correctly.** Verified both ways: a box inside the
+  room draws over the splat, a box behind a wall is fully hidden by it. No render-order work
+  needed.
+
+Both paths import `three` as a bare specifier so Vite dedupes them to one instance. Reaching
+past that — importing `three/build/three.module.js` directly, say — gives Spark a second copy
+and it fails with `Can not resolve #include <splatDefines>`.
 
 Selection has three ways out, because a gizmo you can't dismiss is a trap: the **Done** button
 in the viewport, the one in the inspector header, and **Escape**. Escape is orbit-only —

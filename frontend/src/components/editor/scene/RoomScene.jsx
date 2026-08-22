@@ -3,6 +3,7 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, TransformControls, useGLTF, useProgress } from '@react-three/drei';
 import { Plane, Raycaster, Vector2, Vector3 } from 'three';
 import RoomShell from './RoomShell';
+import RoomSplat from './RoomSplat';
 import PlacedModel from './PlacedModel';
 import WalkControls, { EYE_HEIGHT } from './WalkControls';
 
@@ -85,6 +86,8 @@ export default function RoomScene({
     transformMode,
     gridSnap,
     navMode,
+    roomMode,
+    splatQuality,
     onSelectItem,
     onUpdateItem,
     onDropItem,
@@ -160,6 +163,12 @@ export default function RoomScene({
         });
     }, [attached, selectedId, placedItems, onUpdateItem]);
 
+    // Falls back to the 500k tier whenever full_res is missing — an older room whose backfill
+    // hasn't run, or a world Marble only published one tier for.
+    const splatUrl = splatQuality === 'high'
+        ? room?.splat_url_full_res || room?.splat_url
+        : room?.splat_url;
+
     const items = useMemo(
         () => placedItems.map((item) => ({ item, dimensions: catalogById?.[item.catalog_item_id]?.default_dimensions })),
         [placedItems, catalogById]
@@ -193,6 +202,10 @@ export default function RoomScene({
                 <directionalLight position={[4, 8, 4]} intensity={1.3} />
 
                 <Suspense fallback={null}>
+                    {/* The splat is the photoreal room; the mesh is the fast, clickable one.
+                        The mesh renders underneath either way — it's what a click on empty
+                        space hits to clear the selection, and it's the fallback if the splat
+                        can't load. Under the splat it's simply not visible. */}
                     {room?.collider_mesh_url && (
                         <ModelBoundary>
                             <RoomShell
@@ -201,6 +214,15 @@ export default function RoomScene({
                                 metricScaleFactor={room.metric_scale_factor ?? 1}
                                 onClick={() => navMode === 'orbit' && onSelectItem(null)}
                             />
+                        </ModelBoundary>
+                    )}
+
+                    {roomMode === 'splat' && splatUrl && (
+                        // Keyed on the URL so switching detail tears the old splat down and
+                        // builds the new one, rather than trying to swap a URL underneath a
+                        // half-gigabyte of GPU buffers.
+                        <ModelBoundary key={splatUrl}>
+                            <RoomSplat url={splatUrl} />
                         </ModelBoundary>
                     )}
 
