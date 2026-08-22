@@ -9,11 +9,14 @@ const TRANSFORM_MODES = [
 
 /**
  * Center pane — the 3D viewport shell.
- * Contains the reserved <div id="splat-viewport"> container, the viewfinder
- * chrome, a toolbar overlay, and a 2D scene-items list as a placeholder for
- * 3D selection. External 3D code will fill #splat-viewport.
+ *
+ * Still a shell: #splat-viewport is the reserved mount point that the renderer will fill.
+ * Everything it needs is on the element as data attributes — the Marble collider mesh URL
+ * and the ground-plane offset that furniture sits on — so wiring the renderer in is a
+ * matter of reading them, not of plumbing new state through here.
  */
 export default function Viewport({
+  room,
   placedItems,
   selectedId,
   transformMode,
@@ -112,8 +115,21 @@ export default function Viewport({
         >
           <div
             id="splat-viewport"
+            data-collider-mesh-url={room?.collider_mesh_url || ''}
+            data-splat-url={room?.splat_url || ''}
+            data-ground-plane-offset={room?.ground_plane_offset ?? 0}
+            data-metric-scale-factor={room?.metric_scale_factor ?? 1}
             className="w-full h-full rounded-md bg-foreground/[0.03] border border-border/30 relative overflow-hidden"
           >
+            {/* Marble's panorama of the real room, until the renderer takes over */}
+            {room?.pano_url && (
+              <img
+                src={room.pano_url}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover opacity-40"
+              />
+            )}
+
             {/* Placeholder grid pattern */}
             <div
               className="absolute inset-0 opacity-[0.04]"
@@ -164,7 +180,7 @@ export default function Viewport({
                           {item.name}
                         </span>
                         <span className="font-mono text-[10px] text-muted-foreground ml-auto">
-                          {item.position.x},{item.position.z}
+                          {item.position.x.toFixed(1)},{item.position.z.toFixed(1)}
                         </span>
                       </button>
                     ))}

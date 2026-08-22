@@ -1,24 +1,28 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import base44 from '@base44/vite-plugin'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const src = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'src')
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [
-    base44({
-      // Support for legacy code that imports the base44 SDK with @/integrations, @/entities, etc.
-      // can be removed if the code has been updated to use the new SDK imports from @base44/sdk
-      legacySDKImports: process.env.BASE44_LEGACY_SDK_IMPORTS === 'true',
-      hmrNotifier: true,
-      navigationNotifier: true,
-      analyticsTracker: true,
-      visualEditAgent: true
-    }),
-    react()
-  ],
+  plugins: [react()],
+  resolve: {
+    // "@/..." -> src/..., matching the paths entry in jsconfig.json. This used to come
+    // from the base44 vite plugin; it's declared here now that the plugin is gone.
+    alias: { '@': src },
+  },
   server: {
+    // In dev the API lives on the Spring Boot app; in prod Spring serves this build itself,
+    // so the frontend only ever talks to same-origin /api either way.
     proxy: {
-      '/api': 'http://localhost:8080'
-    }
-  }
+      '/api': {
+        target: 'http://localhost:8080',
+        // Room-scan videos are large and slow; don't time the upload out mid-stream.
+        timeout: 0,
+        proxyTimeout: 0,
+      },
+    },
+  },
 })

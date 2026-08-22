@@ -1,10 +1,13 @@
 import { useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, UploadCloud, Film } from 'lucide-react';
-import { store } from '@/lib/store';
+import { ArrowLeft, UploadCloud, Film, Loader2 } from 'lucide-react';
+import { createRoom } from '@/api/rooms';
 
 const ACCEPTED = '.mp4,.mov,.webm';
-const MAX_SIZE = '500 MB';
+// Marble's own ceiling — its signed upload URLs carry a 100MB content-length range, so a
+// larger file is rejected by object storage regardless. Checked here too, so a doomed
+// upload fails instantly instead of after a few minutes of streaming.
+const MAX_BYTES = 100 * 1024 * 1024;
 const MAX_LENGTH = '~5 min';
 
 export default function Upload() {
@@ -14,11 +17,17 @@ export default function Upload() {
   const [name, setName] = useState('');
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   const handleFile = (f) => {
     if (!f) return;
     if (!/\.(mp4|mov|webm)$/i.test(f.name)) {
       setError('Please choose an MP4, MOV, or WebM file.');
+      return;
+    }
+    if (f.size > MAX_BYTES) {
+      setError(`That file is ${(f.size / 1024 / 1024).toFixed(0)} MB — the limit is 100 MB.`);
       return;
     }
     setError('');
@@ -32,17 +41,29 @@ export default function Upload() {
     handleFile(e.dataTransfer.files[0]);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!file) {
-      setError('Choose a video file to continue.');
+    if (!file || uploading) {
+      if (!file) setError('Choose a video file to continue.');
       return;
     }
-    const project = store.createProject({
-      name: name || file.name.replace(/\.[^.]+$/, ''),
-      source_video_url: URL.createObjectURL(file),
-    });
-    navigate(`/processing/${project.id}`);
+
+    setUploading(true);
+    setProgress(0);
+    setError('');
+
+    try {
+      // Resolves once the row exists server-side; reconstruction carries on without us.
+      const room = await createRoom({
+        name: name || file.name.replace(/\.[^.]+$/, ''),
+        video: file,
+        onProgress: setProgress,
+      });
+      navigate(`/processing/${room.id}`);
+    } catch (err) {
+      setError(err.message || 'The upload failed. Please try again.');
+      setUploading(false);
+    }
   };
 
   return (
@@ -72,11 +93,13 @@ export default function Upload() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Drop zone */}
             <div
-              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragOver={(e) => { e.preventDefault(); if (!uploading) setDragging(true); }}
               onDragLeave={() => setDragging(false)}
-              onDrop={handleDrop}
-              onClick={() => inputRef.current?.click()}
-              className={`cursor-pointer rounded-lg border-2 border-dashed transition-colors p-10 text-center ${
+              onDrop={(e) => { if (!uploading) handleDrop(e); else e.preventDefault(); }}
+              onClick={() => !uploading && inputRef.current?.click()}
+              className={`rounded-lg border-2 border-dashed transition-colors p-10 text-center ${
+                uploading ? 'cursor-default opacity-70' : 'cursor-pointer'
+              } ${
                 dragging
                   ? 'border-primary bg-primary/5'
                   : file
@@ -89,6 +112,7 @@ export default function Upload() {
                 type="file"
                 accept={ACCEPTED}
                 className="hidden"
+                disabled={uploading}
                 onChange={(e) => handleFile(e.target.files[0])}
               />
               {file ? (
@@ -113,7 +137,7 @@ export default function Upload() {
             <div className="flex items-center gap-4 font-mono text-[11px] text-muted-foreground">
               <span>MP4 · MOV · WebM</span>
               <span className="text-border">|</span>
-              <span>Max {MAX_SIZE}</span>
+              <span>Max 100 MB</span>
               <span className="text-border">|</span>
               <span>Max {MAX_LENGTH}</span>
             </div>
@@ -126,11 +150,28 @@ export default function Upload() {
               <input
                 type="text"
                 value={name}
+                disabled={uploading}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Living room"
-                className="w-full px-3 py-2.5 rounded-md bg-card border border-input text-sm font-body focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full px-3 py-2.5 rounded-md bg-card border border-input text-sm font-body focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
               />
             </div>
+
+            {/* Upload progress — large files take a while, so show the bytes moving */}
+            {uploading && (
+              <div>
+                <div className="flex items-center justify-between font-mono text-[11px] text-muted-foreground mb-1.5">
+                  <span>Uploading</span>
+                  <span>{Math.round(progress * 100)}%</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-[width] duration-200"
+                    style={{ width: `${Math.max(2, progress * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
 
             {error && (
               <p className="text-sm text-destructive font-body">{error}</p>
@@ -138,10 +179,11 @@ export default function Upload() {
 
             <button
               type="submit"
-              disabled={!file}
+              disabled={!file || uploading}
               className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-md bg-primary text-primary-foreground font-body text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Start scan
+              {uploading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {uploading ? 'Uploading…' : 'Start scan'}
             </button>
           </form>
         </div>

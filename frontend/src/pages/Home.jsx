@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, ArrowRight, Trash2 } from 'lucide-react';
-import { store } from '@/lib/store';
+import { Plus, ArrowRight, Trash2, Loader2 } from 'lucide-react';
+import { listRooms, deleteRoom } from '@/api/rooms';
 import StatusBadge from '@/components/StatusBadge';
 import Thumbnail from '@/components/Thumbnail';
 
@@ -18,15 +18,31 @@ function formatDate(iso) {
 
 export default function Home() {
   const navigate = useNavigate();
-  const [projects, setProjects] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    setProjects(store.listProjects());
+    let cancelled = false;
+    listRooms()
+      .then((data) => !cancelled && setRooms(data))
+      .catch((err) => !cancelled && setError(err.message))
+      .finally(() => !cancelled && setLoading(false));
+    return () => { cancelled = true; };
   }, []);
 
-  const handleDelete = (id) => {
-    store.deleteProject(id);
-    setProjects(store.listProjects());
+  const handleDelete = async (e, id) => {
+    // The card is a link; deleting shouldn't also navigate into it.
+    e.preventDefault();
+    e.stopPropagation();
+    const previous = rooms;
+    setRooms((current) => current.filter((r) => r.id !== id));
+    try {
+      await deleteRoom(id);
+    } catch (err) {
+      setRooms(previous);
+      setError(err.message);
+    }
   };
 
   return (
@@ -48,8 +64,15 @@ export default function Home() {
         </button>
       </div>
 
-      {/* Empty state */}
-      {projects.length === 0 ? (
+      {error && (
+        <p className="mb-6 text-sm text-destructive font-body">{error}</p>
+      )}
+
+      {loading ? (
+        <div className="flex items-center justify-center py-24 text-muted-foreground">
+          <Loader2 className="w-6 h-6 animate-spin" />
+        </div>
+      ) : rooms.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-5">
             <Plus className="w-7 h-7 text-primary" />
@@ -68,36 +91,36 @@ export default function Home() {
           </button>
         </div>
       ) : (
-        /* Project grid */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {projects.map((p) => (
+          {rooms.map((room) => (
             <div
-              key={p.id}
+              key={room.id}
               className="group relative bg-card rounded-lg border border-border/60 overflow-hidden hover:border-primary/40 transition-colors"
             >
-              <Link to={p.status === 'ready' ? `/editor/${p.id}` : `/processing/${p.id}`}>
+              <Link to={room.status === 'ready' ? `/editor/${room.id}` : `/processing/${room.id}`}>
                 <div className="aspect-[4/3] overflow-hidden">
+                  {/* Marble's own thumbnail once the world exists, placeholder before that. */}
                   <Thumbnail
-                    url={p.thumbnail_url}
-                    label={p.name}
+                    url={room.thumbnail_url}
+                    label={room.name}
                     category="Storage"
                     rounded="rounded-none"
                   />
                 </div>
                 <div className="p-4">
                   <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <h3 className="font-heading text-base font-medium truncate">{p.name}</h3>
-                    <StatusBadge status={p.status} />
+                    <h3 className="font-heading text-base font-medium truncate">{room.name}</h3>
+                    <StatusBadge status={room.status} />
                   </div>
                   <p className="text-xs text-muted-foreground font-mono">
-                    edited {formatDate(p.updated_at || p.created_at)}
+                    edited {formatDate(room.updated_at || room.created_at)}
                   </p>
                 </div>
               </Link>
               <button
-                onClick={() => handleDelete(p.id)}
+                onClick={(e) => handleDelete(e, room.id)}
                 className="absolute top-2 right-2 p-1.5 rounded-md bg-background/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground"
-                title="Delete project"
+                title="Delete room"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>

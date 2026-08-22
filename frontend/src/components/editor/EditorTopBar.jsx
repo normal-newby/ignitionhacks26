@@ -1,8 +1,12 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Check, Loader2, Share2 } from 'lucide-react';
+import { ArrowLeft, AlertCircle, Check, Loader2, Share2 } from 'lucide-react';
 
 /**
  * Editor top bar — project name (editable inline), save status, export action.
+ *
+ * saveStatus is 'saved' | 'saving' | 'error'. The layout is persisted server-side, so a
+ * failed write has to be visible: silently claiming "all changes saved" over a dropped
+ * request is how someone loses a room they spent ten minutes arranging.
  */
 export default function EditorTopBar({
   projectName,
@@ -35,6 +39,11 @@ export default function EditorTopBar({
           <>
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
             <span>Saving…</span>
+          </>
+        ) : saveStatus === 'error' ? (
+          <>
+            <AlertCircle className="w-3.5 h-3.5 text-destructive" />
+            <span className="text-destructive">Couldn't save</span>
           </>
         ) : (
           <>
