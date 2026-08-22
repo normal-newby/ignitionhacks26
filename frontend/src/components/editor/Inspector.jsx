@@ -31,10 +31,10 @@ export default function Inspector({ placedItem, onUpdate, onRemove, onDone }) {
       {/* Header */}
       <div className="p-4 border-b-2 border-[#1e40af] flex items-start gap-2 bg-[#e2e8f0]">
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-[10px] uppercase tracking-wider text-[#5a6c80] mb-1" style={{ fontFamily: '"Press Start 2P"' }}>
+          <p className="font-heading text-[10px] uppercase tracking-wider text-[#5a6c80] mb-1">
             {placedItem.category}
           </p>
-          <h2 className="font-heading text-lg font-medium truncate text-[#252525]" style={{ fontFamily: '"Press Start 2P"' }}>
+          <h2 className="font-heading text-lg font-medium truncate text-[#252525]">
             {placedItem.name}
           </h2>
         </div>
@@ -43,9 +43,8 @@ export default function Inspector({ placedItem, onUpdate, onRemove, onDone }) {
         <button
           onClick={onDone}
           title="Done (Esc)"
-          className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-none bg-[#5a6c80] text-white font-body text-xs font-medium hover:opacity-90 transition-opacity border-2 border-[#1e40af] shadow-[2px_2px_0px_#1e40af] hover:shadow-[1px_1px_0px_#1e40af] active:shadow-none active:translate-x-0.5 active:translate-y-0.5"
-          style={{ fontFamily: '"VT323"' }}
-        >
+          className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-none bg-[#5a6c80] text-white font-terminal text-xs font-medium hover:opacity-90 transition-opacity border-2 border-[#1e40af] shadow-[2px_2px_0px_#1e40af] hover:shadow-[1px_1px_0px_#1e40af] active:shadow-none active:translate-x-0.5 active:translate-y-0.5"
+>
           <Check className="w-3.5 h-3.5" />
           DONE
         </button>
@@ -55,7 +54,7 @@ export default function Inspector({ placedItem, onUpdate, onRemove, onDone }) {
       <div className="flex-1 overflow-y-auto p-3 space-y-4 bg-[#e2e8f0]">
         {/* Position */}
         <div>
-          <h3 className="font-mono text-xs font-bold mb-2 text-[#252525] border-b border-[#1e40af] pb-1" style={{ fontFamily: '"Press Start 2P"' }}>
+          <h3 className="font-heading text-xs font-bold mb-2 text-[#252525] border-b border-[#1e40af] pb-1">
             POSITION
           </h3>
           <div className="grid grid-cols-3 gap-1.5">
@@ -85,7 +84,7 @@ export default function Inspector({ placedItem, onUpdate, onRemove, onDone }) {
 
         {/* Rotation */}
         <div>
-          <h3 className="font-mono text-xs font-bold mb-2 text-[#252525] border-b border-[#1e40af] pb-1" style={{ fontFamily: '"Press Start 2P"' }}>
+          <h3 className="font-heading text-xs font-bold mb-2 text-[#252525] border-b border-[#1e40af] pb-1">
             ROTATION
           </h3>
           <NumberField
@@ -99,7 +98,7 @@ export default function Inspector({ placedItem, onUpdate, onRemove, onDone }) {
 
         {/* Scale */}
         <div>
-          <h3 className="font-mono text-xs font-bold mb-2 text-[#252525] border-b border-[#1e40af] pb-1" style={{ fontFamily: '"Press Start 2P"' }}>
+          <h3 className="font-heading text-xs font-bold mb-2 text-[#252525] border-b border-[#1e40af] pb-1">
             SCALE
           </h3>
           <NumberField
@@ -116,9 +115,8 @@ export default function Inspector({ placedItem, onUpdate, onRemove, onDone }) {
       <div className="p-3 border-t-2 border-[#1e40af] bg-[#cbd5e1]">
         <button
           onClick={() => onRemove(placedItem.id)}
-          className="w-full inline-flex items-center justify-center gap-2 px-2 py-2 border-2 border-[#5a6c80] bg-[#e2e8f0] text-[#5a6c80] font-mono text-sm font-bold hover:bg-[#5a6c80] hover:text-white transition-colors active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
-          style={{ fontFamily: '"Press Start 2P"' }}
-        >
+          className="w-full inline-flex items-center justify-center gap-2 px-2 py-2 border-2 border-[#5a6c80] bg-[#e2e8f0] text-[#5a6c80] font-heading text-sm font-bold hover:bg-[#5a6c80] hover:text-white transition-colors active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
+>
           <Trash2 className="w-4 h-4" />
           REMOVE FROM ROOM
         </button>

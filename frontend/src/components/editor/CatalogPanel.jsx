@@ -43,7 +43,7 @@ function CatalogPanel({ items = [], loading = false, onAdd }) {
     <div className="w-72 flex-shrink-0 border-r-2 border-b-2 border-r-[#808080] border-b-[#808080] border-t-white border-l-white bg-[#c0c0c0] flex flex-col h-full">
       {/* Title bar - Pixel art style */}
       <div className="p-2 bg-[#3b82f6] text-white flex justify-between items-center border-b-2 border-[#1e40af]">
-        <h2 className="font-mono text-sm font-bold uppercase" style={{ fontFamily: '"Press Start 2P"' }}>
+        <h2 className="font-heading text-sm font-bold uppercase">
           CATALOG
         </h2>
         <div className="flex gap-1">
@@ -62,8 +62,7 @@ function CatalogPanel({ items = [], loading = false, onAdd }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="SEARCH FURNITURE…"
-            className="w-full pl-8 pr-2 py-1 border-2 border-t-[#e2e8f0] border-l-[#e2e8f0] border-r-[#1e40af] border-b-[#1e40af] bg-white text-sm font-mono text-[#252525]"
-            style={{ fontFamily: '"VT323"' }}
+            className="w-full pl-8 pr-2 py-1 border-2 border-t-[#e2e8f0] border-l-[#e2e8f0] border-r-[#1e40af] border-b-[#1e40af] bg-white text-sm font-terminal text-[#252525]"
           />
         </div>
         {/* Category filter */}
@@ -72,13 +71,12 @@ function CatalogPanel({ items = [], loading = false, onAdd }) {
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`px-2 py-0.5 border-2 border-t-[#e2e8f0] border-l-[#e2e8f0] border-r-[#1e40af] border-b-[#1e40af] text-[10px] font-mono font-bold transition-colors ${
+              className={`px-2 py-0.5 border-2 border-t-[#e2e8f0] border-l-[#e2e8f0] border-r-[#1e40af] border-b-[#1e40af] text-[12px] font-terminal font-bold transition-colors ${
                 activeCategory === cat
                   ? 'bg-[#3b82f6] text-white'
                   : 'bg-[#e2e8f0] text-[#252525] hover:bg-[#3b82f6] hover:text-white'
               }`}
-              style={{ fontFamily: '"VT323"' }}
-            >
+>
               {cat}
             </button>
           ))}
@@ -88,18 +86,18 @@ function CatalogPanel({ items = [], loading = false, onAdd }) {
       {/* Scrollable item list */}
       <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-[#e2e8f0]">
         {loading && (
-          <p className="text-sm text-[#252525] text-center py-4 font-mono" style={{ fontFamily: '"VT323"' }}>
+          <p className="text-md text-[#252525] text-center py-4 font-terminal">
             LOADING CATALOG…
           </p>
         )}
         {!loading && Object.keys(grouped).length === 0 && (
-          <p className="text-sm text-[#252525] text-center py-4 font-mono" style={{ fontFamily: '"VT323"' }}>
+          <p className="text-md text-[#252525] text-center py-4 font-terminal">
             NO ITEMS MATCH SEARCH
           </p>
         )}
         {Object.entries(grouped).map(([category, catItems]) => (
           <div key={category}>
-            <h3 className="font-mono text-[10px] uppercase tracking-wider text-[#252525] mb-1 px-1 border-b border-[#1e40af]" style={{ fontFamily: '"Press Start 2P"' }}>
+            <h3 className="font-heading text-[13px] uppercase tracking-wider text-[#252525] mb-1 px-1 border-b border-[#1e40af]">
               {category}
             </h3>
             <div className="space-y-1">
@@ -122,8 +120,8 @@ function CatalogPanel({ items = [], loading = false, onAdd }) {
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-mono text-xs font-bold truncate text-[#252525] group-hover:text-white" style={{ fontFamily: '"VT323"' }}>{item.name}</p>
-                    <p className="font-mono text-[9px] text-[#5a6c80] group-hover:text-white/70" style={{ fontFamily: '"VT323"' }}>
+                    <p className="font-terminal text-md font-bold truncate text-[#252525] group-hover:text-white">{item.name}</p>
+                    <p className="font-terminal text-[11px] text-[#5a6c80] group-hover:text-white/70">
                       {item.default_dimensions.width}×{item.default_dimensions.depth}×{item.default_dimensions.height}CM
                     </p>
                   </div>
@@ -136,7 +134,7 @@ function CatalogPanel({ items = [], loading = false, onAdd }) {
 
       {/* Status bar */}
       <div className="p-1 border-t-2 border-[#1e40af] bg-[#cbd5e1]">
-        <p className="font-mono text-[10px] text-[#252525] text-center" style={{ fontFamily: '"Press Start 2P"' }}>
+        <p className="font-heading text-[10px] text-[#252525] text-center">
           DRAG ONTO VIEWPORT OR TAP TO ADD
         </p>
       </div>

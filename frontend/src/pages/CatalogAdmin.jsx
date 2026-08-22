@@ -44,7 +44,7 @@ function tooBig(file, limitMb) {
 function FileField({ id, label, inputRef, accept, file, hint, onPick }) {
   return (
     <div>
-      <span className="block text-sm font-body font-medium mb-1">{label}</span>
+      <span className="block font-heading text-[9px] uppercase text-[#1e40af] mb-1.5">{label}</span>
       <div className="flex items-center gap-3">
         <input
           id={id}
@@ -56,15 +56,15 @@ function FileField({ id, label, inputRef, accept, file, hint, onPick }) {
         />
         <label
           htmlFor={id}
-          className="inline-flex items-center px-3 py-1.5 rounded-md bg-muted text-sm font-body font-medium cursor-pointer hover:bg-muted/70 transition-colors peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring"
+          className="inline-flex items-center px-3 py-1.5 bg-[#e2e8f0] text-[#252525] font-terminal text-base uppercase cursor-pointer border-2 border-[#1e40af] hover:bg-[#cbd5e1] transition-colors peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-[#3b82f6]"
         >
           Choose file
         </label>
-        <span className="font-body text-sm text-muted-foreground truncate min-w-0">
+        <span className="font-mono text-xs text-[#5a6c80] truncate min-w-0">
           {file ? file.name : 'No file chosen'}
         </span>
       </div>
-      <p className="font-mono text-[10px] text-muted-foreground mt-1">{hint}</p>
+      <p className="font-mono text-[10px] text-[#5a6c80] mt-1.5">{hint}</p>
     </div>
   );
 }
@@ -220,15 +220,15 @@ export default function CatalogAdmin() {
     <div className="max-w-5xl mx-auto px-6 py-10 animate-fade-in">
       <div className="flex items-end justify-between mb-8">
         <div>
-          <h1 className="font-heading text-3xl font-semibold tracking-tight">Catalog</h1>
-          <p className="text-muted-foreground text-sm mt-1 font-body">
+          <h1 className="font-heading text-lg uppercase text-[#252525]">Catalog admin</h1>
+          <p className="font-terminal text-base text-[#5a6c80] mt-1">
             Manage the furniture pieces available in the editor.
           </p>
         </div>
         <button
           onClick={startCreate}
           disabled={busy}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md bg-primary text-primary-foreground font-body text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[#3b82f6] text-white font-terminal text-base uppercase border-2 border-[#1e40af] shadow-[2px_2px_0px_#1e40af] hover:shadow-[1px_1px_0px_#1e40af] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-shadow disabled:opacity-50"
         >
           <Plus className="w-4 h-4" />
           Add item
@@ -236,31 +236,31 @@ export default function CatalogAdmin() {
       </div>
 
       {error && (
-        <div className="mb-6 flex items-start gap-2.5 p-3.5 rounded-md border border-destructive/40 bg-destructive/10">
+        <div className="mb-6 flex items-start gap-2.5 p-3.5 border-2 border-[#ef4444] bg-[#ef4444]/10">
           <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
-          <p className="font-body text-sm text-destructive">{error}</p>
+          <p className="font-terminal text-base text-[#ef4444]">{error}</p>
         </div>
       )}
 
       {/* Inline editor form */}
       {editingId && (
-        <div className="mb-6 p-5 rounded-lg border border-primary/30 bg-card animate-fade-in">
+        <div className="mb-6 p-5 bg-[#e2e8f0] border-2 border-[#1e40af] shadow-[3px_3px_0px_#1e40af] animate-fade-in">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-body font-medium mb-1">Name</label>
+              <label className="block font-heading text-[9px] uppercase text-[#1e40af] mb-1.5">Name</label>
               <input
                 type="text"
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                className="w-full px-3 py-2 rounded-md bg-background border border-input text-sm font-body focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full px-3 py-2 bg-[#e2e8f0] border-2 border-[#1e40af] font-mono text-sm text-[#252525] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
               />
             </div>
             <div>
-              <label className="block text-sm font-body font-medium mb-1">Category</label>
+              <label className="block font-heading text-[9px] uppercase text-[#1e40af] mb-1.5">Category</label>
               <select
                 value={draft.category}
                 onChange={(e) => setDraft({ ...draft, category: e.target.value })}
-                className="w-full px-3 py-2 rounded-md bg-background border border-input text-sm font-body focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full px-3 py-2 bg-[#e2e8f0] border-2 border-[#1e40af] font-mono text-sm text-[#252525] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
               >
                 {CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>{cat}</option>
@@ -293,7 +293,7 @@ export default function CatalogAdmin() {
 
             <div className="md:col-span-2">
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-sm font-body font-medium">
+                <label className="block font-heading text-[9px] uppercase text-[#1e40af]">
                   Default dimensions (cm)
                 </label>
                 <button
@@ -301,7 +301,7 @@ export default function CatalogAdmin() {
                   onClick={estimate}
                   disabled={busy || estimating}
                   title="Guess the real-world size from the name, category and thumbnail"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border font-body text-xs font-medium hover:bg-muted transition-colors disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#e2e8f0] text-[#252525] font-terminal text-sm uppercase border-2 border-[#1e40af] hover:bg-[#cbd5e1] transition-colors disabled:opacity-50"
                 >
                   {estimating ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -314,7 +314,7 @@ export default function CatalogAdmin() {
               <div className="grid grid-cols-3 gap-3">
                 {['width', 'depth', 'height'].map((dim) => (
                   <div key={dim}>
-                    <span className="block font-mono text-[10px] uppercase text-muted-foreground mb-1">{dim}</span>
+                    <span className="block font-heading text-[8px] uppercase text-[#5a6c80] mb-1.5">{dim}</span>
                     <input
                       type="number"
                       value={draft.default_dimensions[dim]}
@@ -327,13 +327,13 @@ export default function CatalogAdmin() {
                           },
                         })
                       }
-                      className="w-full px-2.5 py-2 rounded-md bg-background border border-input font-mono text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="w-full px-2.5 py-2 bg-[#e2e8f0] border-2 border-[#1e40af] font-mono text-sm text-[#252525] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
                     />
                   </div>
                 ))}
               </div>
               {estimateNote && (
-                <p className="flex items-start gap-1.5 font-mono text-[10px] text-muted-foreground mt-1.5">
+                <p className="flex items-start gap-1.5 font-mono text-[10px] text-[#5a6c80] mt-1.5">
                   <Sparkles className="w-3 h-3 flex-shrink-0 mt-px" />
                   <span>Estimated — {estimateNote} Check the numbers before saving.</span>
                 </p>
@@ -343,13 +343,13 @@ export default function CatalogAdmin() {
 
           {busy && progress > 0 && (
             <div className="mt-4">
-              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+              <div className="h-2 bg-[#cbd5e1] border-2 border-[#1e40af] overflow-hidden">
                 <div
-                  className="h-full bg-primary transition-[width] duration-150"
+                  className="h-full bg-[#3b82f6] transition-[width] duration-150"
                   style={{ width: `${Math.round(progress * 100)}%` }}
                 />
               </div>
-              <p className="font-mono text-[10px] text-muted-foreground mt-1.5">
+              <p className="font-mono text-[10px] text-[#5a6c80] mt-1.5">
                 Uploading… {Math.round(progress * 100)}%
               </p>
             </div>
@@ -359,7 +359,7 @@ export default function CatalogAdmin() {
             <button
               onClick={save}
               disabled={busy}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary text-primary-foreground font-body text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#3b82f6] text-white font-terminal text-base uppercase border-2 border-[#1e40af] shadow-[2px_2px_0px_#1e40af] hover:shadow-[1px_1px_0px_#1e40af] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-shadow disabled:opacity-50"
             >
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
               Save item
@@ -367,7 +367,7 @@ export default function CatalogAdmin() {
             <button
               onClick={cancel}
               disabled={busy}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-border font-body text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#e2e8f0] text-[#252525] font-terminal text-base uppercase border-2 border-[#1e40af] shadow-[2px_2px_0px_#1e40af] hover:shadow-[1px_1px_0px_#1e40af] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-shadow disabled:opacity-50"
             >
               <X className="w-4 h-4" />
               Cancel
@@ -377,7 +377,7 @@ export default function CatalogAdmin() {
       )}
 
       {/* Items table */}
-      <div className="rounded-lg border border-border/60 overflow-hidden">
+      <div className="border-2 border-[#1e40af] overflow-hidden">
         <table className="w-full">
           <thead>
             <tr className="bg-muted/50 border-b border-border/60">
@@ -434,7 +434,7 @@ export default function CatalogAdmin() {
                     <button
                       onClick={() => startEdit(item)}
                       disabled={busy}
-                      className="p-1.5 rounded-md hover:bg-muted transition-colors disabled:opacity-40"
+                      className="p-1.5 border-2 border-transparent text-[#5a6c80] hover:bg-[#cbd5e1] hover:text-[#252525] transition-colors disabled:opacity-40"
                       title="Edit"
                     >
                       <Pencil className="w-3.5 h-3.5" />
@@ -442,7 +442,7 @@ export default function CatalogAdmin() {
                     <button
                       onClick={() => handleDelete(item.id)}
                       disabled={busy}
-                      className="p-1.5 rounded-md hover:bg-destructive hover:text-destructive-foreground transition-colors disabled:opacity-40"
+                      className="p-1.5 border-2 border-transparent text-[#5a6c80] hover:bg-[#ef4444] hover:text-white transition-colors disabled:opacity-40"
                       title="Delete"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

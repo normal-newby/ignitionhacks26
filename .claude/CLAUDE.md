@@ -225,6 +225,45 @@ Only a freshly picked thumbnail is sent as a reference. One already attached to 
 in MinIO, and round-tripping it through the browser to re-upload it is a lot of bytes for a
 hint.
 
+## Theme and type
+
+Blue/grey pixel-art. Colour tokens live in `index.css` as HSL vars and are wired into Tailwind,
+and **`--radius: 0rem`**, so every `rounded-*` utility in the app already renders square — no
+need to strip them. Depth comes from `border-2 border-[#1e40af]` plus an offset hard shadow
+(`shadow-[2px_2px_0px_#1e40af]`), not from blur.
+
+The palette as used in the components: `#1e40af` borders, `#3b82f6` primary/active, `#5a6c80`
+secondary and muted text, `#e2e8f0` panels, `#cbd5e1` recessed backgrounds, `#252525` body text,
+`#ef4444` destructive, `#10b981` success.
+
+**Three pixel faces, one way to reach each.** `index.html` loads Press Start 2P, VT323 and Space
+Mono; `index.css` maps them onto the font vars:
+
+| Utility | Face | For |
+| --- | --- | --- |
+| `font-heading` / `font-display` | Press Start 2P | headings, short uppercase labels |
+| `font-body` / `font-mono` | Space Mono | body and data text |
+| `font-terminal` | VT323 | buttons |
+
+Those vars used to name **`JetBrains Mono`, which is not loaded anywhere** — so every
+`font-heading`/`font-body`/`font-mono` in the app silently fell through to the system monospace,
+and the only way anything got a pixel face was an inline `style={{ fontFamily: ... }}` on the
+element. That is why those inline styles existed; they have all been replaced by the utilities
+above, and there should be no `fontFamily` in JSX. Naming a font inline again would put the app
+straight back into two competing mechanisms.
+
+**Press Start 2P draws about half again as wide as a normal mono at the same size**, and has no
+lowercase worth reading. Anything switched onto `font-heading` needs its `text-*` stepped down
+at the same time — that is why the viewfinder labels are `text-[8px]` and the top bar's room
+name is `text-xs`. It is also why the viewport's bottom-centre controls hint is `hidden
+xl:block`: the catalog rail and inspector take a fixed ~580px, so below 1280 the viewport pane
+is under 400px and that one line stacked seven rows deep over the room.
+
+There is **no export button**. It has been removed twice — once on request, and once after a UI
+commit reinstated the markup without the `onExport` prop or the `Share2` import, which is a
+render-time `ReferenceError` that takes the whole editor page down with it. `Editor.jsx` has no
+export handler at all, so re-adding the button means writing one first.
+
 ## Frontend notes
 
 - `src/api/rooms.js` and `src/api/catalog.js` are the only places that talk to the backend.
