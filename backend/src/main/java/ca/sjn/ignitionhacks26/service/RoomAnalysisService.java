@@ -1,22 +1,18 @@
 package ca.sjn.ignitionhacks26.service;
 
-import ca.sjn.ignitionhacks26.config.AnthropicProperties;
+import ca.sjn.ignitionhacks26.config.GeminiProperties;
 import ca.sjn.ignitionhacks26.dto.RoomAnalysis;
 import ca.sjn.ignitionhacks26.dto.UploadedFrame;
 import ca.sjn.ignitionhacks26.entity.AnalysisStatus;
 import ca.sjn.ignitionhacks26.entity.RoomEntity;
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.models.messages.Base64ImageSource;
-import com.anthropic.models.messages.ContentBlockParam;
-import com.anthropic.models.messages.ImageBlockParam;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.StructuredMessageCreateParams;
-import com.anthropic.models.messages.TextBlockParam;
-import com.anthropic.models.messages.ThinkingConfigAdaptive;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -49,15 +45,49 @@ public class RoomAnalysisService {
             a close-up of an object, or otherwise not a room, return roomType "unknown".
             """;
 
-    private final Optional<AnthropicClient> anthropicClient;
-    private final AnthropicProperties properties;
+    /**
+     * Gemini responseSchema (OpenAPI subset) matching {@link RoomAnalysis}. The descriptions are
+     * part of the prompt as far as the model is concerned, so they carry real weight.
+     */
+    private static final Map<String, Object> RESPONSE_SCHEMA = Map.of(
+            "type", "OBJECT",
+            "properties", Map.of(
+                    "roomType", Map.of(
+                            "type", "STRING",
+                            "description", "The type of room shown, lowercase, e.g. 'kitchen', "
+                                    + "'primary bedroom', 'living room', 'bathroom', 'hallway', 'garage'. "
+                                    + "Use 'unknown' if the frame is too ambiguous or does not show an "
+                                    + "interior room."),
+                    "estimatedSqft", Map.of(
+                            "type", "INTEGER",
+                            "nullable", true,
+                            "description", "Estimated floor area of the room in square feet, inferred from "
+                                    + "visible furniture and fixtures used as scale references. Null if not "
+                                    + "estimable."),
+                    "conditionTags", Map.of(
+                            "type", "ARRAY",
+                            "items", Map.of("type", "STRING"),
+                            "description", "Short lowercase condition descriptors observed in the frame, e.g. "
+                                    + "'hardwood floors', 'dated cabinets', 'water damage', 'natural light', "
+                                    + "'recently renovated'. Between 0 and 5 tags."),
+                    "confidence", Map.of(
+                            "type", "NUMBER",
+                            "description", "Confidence in the roomType classification, between 0.0 and 1.0.")),
+            "required", List.of("roomType", "conditionTags", "confidence"),
+            "propertyOrdering", List.of("roomType", "estimatedSqft", "conditionTags", "confidence"));
+
+    private final Optional<RestClient> geminiRestClient;
+    private final GeminiProperties properties;
+    private final ObjectMapper objectMapper;
     private final ScanService scanService;
 
-    public RoomAnalysisService(Optional<AnthropicClient> anthropicClient,
-                               AnthropicProperties properties,
+    public RoomAnalysisService(@Qualifier("geminiRestClient") Optional<RestClient> geminiRestClient,
+                               GeminiProperties properties,
+                               ObjectMapper objectMapper,
                                ScanService scanService) {
-        this.anthropicClient = anthropicClient;
+        this.geminiRestClient = geminiRestClient;
         this.properties = properties;
+        this.objectMapper = objectMapper;
         this.scanService = scanService;
     }
 
@@ -67,8 +97,8 @@ public class RoomAnalysisService {
      */
     @Async
     public void analyzeAsync(UUID scanId, List<UploadedFrame> frames) {
-        if (anthropicClient.isEmpty()) {
-            log.warn("ANTHROPIC_API_KEY not configured — skipping room analysis for scan {}", scanId);
+        if (geminiRestClient.isEmpty()) {
+            log.warn("GEMINI_API_KEY not configured — skipping room analysis for scan {}", scanId);
             scanService.updateAnalysisStatus(scanId, AnalysisStatus.FAILED, "Vision model not configured");
             return;
         }
@@ -104,40 +134,60 @@ public class RoomAnalysisService {
         log.info("Room analysis complete for scan {}", scanId);
     }
 
-    private RoomAnalysis analyzeFrame(UploadedFrame frame) {
-        ImageBlockParam image = ImageBlockParam.builder()
-                .source(Base64ImageSource.builder()
-                        .mediaType(mediaType(frame.mimeType()))
-                        .data(frame.base64())
-                        .build())
-                .build();
+    private RoomAnalysis analyzeFrame(UploadedFrame frame) throws Exception {
+        Map<String, Object> request = Map.of(
+                "systemInstruction", Map.of("parts", List.of(Map.of("text", SYSTEM_PROMPT))),
+                "contents", List.of(Map.of(
+                        "role", "user",
+                        "parts", List.of(
+                                Map.of("inline_data", Map.of(
+                                        "mime_type", mediaType(frame.mimeType()),
+                                        "data", frame.base64())),
+                                Map.of("text", "Analyse this walkthrough photo.")))),
+                "generationConfig", Map.of(
+                        "responseMimeType", "application/json",
+                        "responseSchema", RESPONSE_SCHEMA));
 
-        StructuredMessageCreateParams<RoomAnalysis> params = MessageCreateParams.builder()
-                .model(properties.getModel())
-                .maxTokens(4096L)
-                .system(SYSTEM_PROMPT)
-                .thinking(ThinkingConfigAdaptive.builder().build())
-                .addUserMessageOfBlockParams(List.of(
-                        ContentBlockParam.ofImage(image),
-                        ContentBlockParam.ofText(TextBlockParam.builder()
-                                .text("Analyse this walkthrough photo.")
-                                .build())))
-                .outputConfig(RoomAnalysis.class)
-                .build();
+        JsonNode response = geminiRestClient.orElseThrow().post()
+                .uri("/v1beta/models/{model}:generateContent", properties.getModel())
+                .body(request)
+                .retrieve()
+                .body(JsonNode.class);
 
-        return anthropicClient.orElseThrow().messages().create(params).content().stream()
-                .flatMap(block -> block.text().stream())
-                .map(text -> text.text())
-                .findFirst()
-                .orElse(null);
+        String json = extractJson(response);
+        return json == null ? null : objectMapper.readValue(json, RoomAnalysis.class);
     }
 
-    private static Base64ImageSource.MediaType mediaType(String mimeType) {
+    /**
+     * Digs the model's JSON out of the generateContent envelope. A candidate can come back with no
+     * text part at all (safety block, or a MAX_TOKENS stop before anything was emitted), which is a
+     * skipped frame rather than an error.
+     */
+    private static String extractJson(JsonNode response) {
+        if (response == null) {
+            return null;
+        }
+        for (JsonNode part : response.path("candidates").path(0).path("content").path("parts")) {
+            // Thinking models can emit a thought-summary part before the answer; it also carries
+            // "text", so taking the first text part blindly would hand back reasoning, not JSON.
+            if (part.path("thought").asBoolean(false)) {
+                continue;
+            }
+            if (part.hasNonNull("text")) {
+                return part.get("text").asString();
+            }
+        }
+        return null;
+    }
+
+    /** Gemini takes the MIME type verbatim; normalise the handful of formats we accept. */
+    private static String mediaType(String mimeType) {
         return switch (mimeType == null ? "" : mimeType.toLowerCase(Locale.ROOT)) {
-            case "image/png" -> Base64ImageSource.MediaType.IMAGE_PNG;
-            case "image/gif" -> Base64ImageSource.MediaType.IMAGE_GIF;
-            case "image/webp" -> Base64ImageSource.MediaType.IMAGE_WEBP;
-            default -> Base64ImageSource.MediaType.IMAGE_JPEG;
+            case "image/png" -> "image/png";
+            case "image/webp" -> "image/webp";
+            case "image/heic" -> "image/heic";
+            case "image/heif" -> "image/heif";
+            default -> "image/jpeg";
         };
     }
 

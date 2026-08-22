@@ -4,6 +4,7 @@ import ca.sjn.ignitionhacks26.dto.MarbleOperation;
 import ca.sjn.ignitionhacks26.dto.UploadedFrame;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -23,7 +24,7 @@ public class MarbleClient {
 
     private final RestClient marbleRestClient;
 
-    public MarbleClient(RestClient marbleRestClient) {
+    public MarbleClient(@Qualifier("marbleRestClient") RestClient marbleRestClient) {
         this.marbleRestClient = marbleRestClient;
     }
 

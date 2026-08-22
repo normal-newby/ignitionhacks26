@@ -1,8 +1,6 @@
 package ca.sjn.ignitionhacks26.config;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,7 +14,7 @@ import java.time.Duration;
 @Configuration
 @EnableAsync
 @EnableScheduling
-@EnableConfigurationProperties({MarbleProperties.class, AnthropicProperties.class})
+@EnableConfigurationProperties({MarbleProperties.class, GeminiProperties.class})
 public class AppConfig {
 
     /**
@@ -45,13 +43,21 @@ public class AppConfig {
 
     /**
      * Only defined when a key is present, so the app still boots (with the vision pass
-     * disabled) if ANTHROPIC_API_KEY isn't set.
+     * disabled) if GEMINI_API_KEY isn't set.
      */
     @Bean
-    @ConditionalOnProperty(prefix = "anthropic", name = "api-key")
-    public AnthropicClient anthropicClient(AnthropicProperties properties) {
-        return AnthropicOkHttpClient.builder()
-                .apiKey(properties.getApiKey())
+    @ConditionalOnExpression("!'${gemini.api-key:}'.isBlank()")
+    public RestClient geminiRestClient(GeminiProperties properties) {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(15));
+        // One frame per call, but thinking-enabled models can take a while to answer.
+        factory.setReadTimeout(Duration.ofSeconds(120));
+
+        return RestClient.builder()
+                .baseUrl(properties.getBaseUrl())
+                .requestFactory(factory)
+                .defaultHeader("Accept", "application/json")
+                .defaultHeader("x-goog-api-key", properties.getApiKey())
                 .build();
     }
 }

@@ -1,6 +1,6 @@
 package ca.sjn.ignitionhacks26.dto;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import java.util.Iterator;
 import java.util.List;
@@ -89,14 +89,14 @@ public record MarbleAssets(
         if (candidate == null || candidate.isNull()) {
             return null;
         }
-        if (candidate.isTextual()) {
-            return candidate.asText().isBlank() ? null : candidate.asText();
+        if (candidate.isString()) {
+            return candidate.asString().isBlank() ? null : candidate.asString();
         }
         if (candidate.isObject()) {
             for (String wrapper : List.of("url", "uri", "href", "signed_url")) {
                 JsonNode inner = candidate.get(wrapper);
-                if (inner != null && inner.isTextual() && !inner.asText().isBlank()) {
-                    return inner.asText();
+                if (inner != null && inner.isString() && !inner.asString().isBlank()) {
+                    return inner.asString();
                 }
             }
         }

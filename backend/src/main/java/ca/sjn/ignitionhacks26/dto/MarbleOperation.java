@@ -2,7 +2,7 @@ package ca.sjn.ignitionhacks26.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Marble's long-running-operation envelope, returned by both worlds:generate and
@@ -39,6 +39,6 @@ public record MarbleOperation(
             return null;
         }
         JsonNode message = error.get("message");
-        return message != null ? message.asText() : error.toString();
+        return message != null ? message.asString() : error.toString();
     }
 }
