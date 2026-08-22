@@ -66,8 +66,14 @@ this is the base scene the editor loads), `assets.splats.spz_urls.{100k,500k,ful
 `assets.thumbnail_url`, `assets.imagery.pano_url`, `assets.caption`, and
 `assets.splats.semantics_metadata.{ground_plane_offset, metric_scale_factor}`.
 
-Use Marble's `ground_plane_offset` as the known floor height for placement — don't try to
-detect the floor geometrically from the mesh.
+**`ground_plane_offset` does not describe the collider mesh.** This was the plan and it's
+wrong in practice: on the test scan the mesh bottoms out at -1.267 native units while the
+offset reads 1.610, and applying it puts the floor **29.5cm** out — every piece of furniture
+buried in the floor. It ships under `assets.splats.semantics_metadata`, so it most likely
+describes the splat frame, which needn't match the mesh's. `RoomShell` takes the floor from
+the mesh's own `Box3` minimum instead and keeps the offset only as a fallback for a mesh with
+no usable bounds. `metric_scale_factor` *is* trustworthy: 3.262 native units × 0.862 = a 2.81m
+floor-to-ceiling room, which is right.
 
 **Open verification item:** whether Marble's hosted asset URLs are permanent or expire.
 Test early — generate one world, wait a few hours, confirm the URL still resolves. If it
@@ -81,7 +87,8 @@ store our own URL). Don't build that fallback preemptively.
   `ground_plane_offset`, `metric_scale_factor`, `progress_message`, `error_message`,
   timestamps.
 - **`models`** — the user-editable layout: one catalog model placed in a room. `room_id` FK,
-  many models per room. Carries `catalog_id`, `pos_x/pos_y/pos_z`, `rotation_y` (degrees,
+  many models per room. Carries `catalog_id`, `pos_x/pos_y/pos_z` (metres, `pos_y` = height
+  above the floor, since `RoomShell` puts the scanned floor on y=0), `rotation_y` (degrees,
   yaw only), `scale`, plus **denormalised copies** of the catalog entry's `name`, `category`
   and `model_url` — snapshotting keeps a saved layout renderable even if the catalog entry
   behind it is later edited or deleted. Deliberately not an FK to `furniture_catalog`.
@@ -185,12 +192,42 @@ All request/response bodies are snake_case, matching what the React pages read.
   because adding an item needs the same list to resolve a catalog id into the name, category
   and model URL it snapshots onto the placed model.
 - The editor debounces transform writes ~500ms per model id, so a drag is one PATCH.
-- `#splat-viewport` in `components/editor/Viewport.jsx` is the reserved mount point for the
-  3D renderer, which is **not built yet**. The collider mesh URL, splat URL, ground-plane
-  offset and metric scale factor are already on that element as `data-*` attributes, so
-  wiring a renderer in means reading them, not re-plumbing state.
+- The 3D renderer lives in `components/editor/scene/` (react-three-fiber + drei). `Viewport`
+  is now just the chrome around `RoomScene`; the old `#splat-viewport` div and its `data-*`
+  attributes are gone, since props carry all of it.
 - The `@/` import alias is declared in `vite.config.js` (it used to come from the base44
   plugin, which has been removed).
+
+## The 3D renderer
+
+`components/editor/scene/`, built on react-three-fiber 8 + drei 9 (React 18 caps both at
+those majors). The whole scene is **metres with the floor at y=0** — see Storage rules for how
+Marble's frame gets mapped onto that, and why the mapping isn't the documented one.
+
+- `RoomScene` — the Canvas: lights, controls, drop handling, and the one `TransformControls`
+  gizmo, attached by object reference to whichever piece is selected. Models register their
+  group in a ref map so the gizmo can find them.
+- `RoomShell` — the Marble scan. Not editable, and clicking it clears the selection.
+- `PlacedModel` — one piece of furniture. Splits into a GLB branch and a placeholder-box
+  branch rather than branching inside one component, because `useGLTF` can't be called
+  conditionally. Catalog GLBs are measured and rescaled so their height matches the catalog
+  entry's `height_cm` — **the catalog dimensions are what size a model on screen**, so an
+  entry left at the default 50×50×50 renders a 50cm-tall sofa.
+- `WalkControls` — pointer-lock first person, WASD, shift to hurry. Deliberately
+  collisionless and pinned to 1.6m eye height.
+
+Two things that will silently break the room if disturbed:
+
+- **Marble's collider meshes are DRACO-compressed.** Without a decoder the room doesn't
+  appear at all. drei defaults to pulling one from `gstatic.com` at load time; `RoomScene`
+  calls `useGLTF.setDecoderPath('/draco/')` so it comes from `public/draco/` instead and the
+  demo doesn't depend on a third-party CDN. Those three files are copied from
+  `three/examples/jsm/libs/draco/gltf/` — re-copy them if three is upgraded.
+- The scene tree has its own eslint override turning off `react/no-unknown-property`. r3f
+  makes every three.js class a JSX intrinsic, so there's no allow-list worth maintaining.
+
+The mesh is ~5MB and takes a good few seconds; the loading percentage comes from drei's
+`useProgress`.
 
 ## Commands
 

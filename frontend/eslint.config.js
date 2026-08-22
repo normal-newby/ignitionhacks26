@@ -57,4 +57,14 @@ export default [
       "react-hooks/rules-of-hooks": "error",
     },
   },
+  {
+    // react-three-fiber turns every three.js class into a JSX intrinsic, so <mesh>, <group>,
+    // <ambientLight> and their props are all "unknown" as far as this rule is concerned.
+    // There's no allow-list worth maintaining — three's surface is the whole library — so the
+    // rule is off for the scene tree and only there.
+    files: ["src/components/editor/scene/**/*.jsx"],
+    rules: {
+      "react/no-unknown-property": "off",
+    },
+  },
 ];

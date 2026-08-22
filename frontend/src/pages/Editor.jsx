@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import {
@@ -47,16 +47,19 @@ function toApi(patch) {
 }
 
 /**
- * Where a newly added item lands: a loose grid on the floor so successive adds don't stack
- * on the same spot. Y comes from Marble's ground-plane offset, which is the whole reason we
- * persist that value.
+ * Where a newly added item lands when there's no drop point — a loose grid on the floor, so
+ * successive clicks from the catalog rail don't stack on one spot.
+ *
+ * Y is 0 because RoomShell lifts the scanned room by Marble's ground-plane offset, putting
+ * the real floor on y=0. So `pos_y` means "height above the floor", not a coordinate in
+ * Marble's frame.
  */
-function spawnPosition(count, groundPlaneOffset) {
+function spawnPosition(count) {
   const col = count % 5;
   const row = Math.floor(count / 5);
   return {
     x: col * 0.6 - 1.2,
-    y: groundPlaneOffset ?? 0,
+    y: 0,
     z: row * 0.6 - 0.6,
   };
 }
@@ -70,6 +73,7 @@ export default function Editor() {
   const [placedItems, setPlacedItems] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [transformMode, setTransformMode] = useState('move');
+  const [navMode, setNavMode] = useState('orbit');
   const [gridSnap, setGridSnap] = useState(false);
   const [projectName, setProjectName] = useState('');
   const [saveStatus, setSaveStatus] = useState('saved');
@@ -161,13 +165,20 @@ export default function Editor() {
 
   /* ---------------- mutations ---------------- */
 
+  /**
+   * `dropPoint` is where the cursor met the floor, when the item arrived by drag. Falling
+   * back to the spawn grid covers a click from the catalog rail, and a drop aimed above the
+   * horizon where the ray never meets the floor.
+   */
   const handleAddItem = useCallback(
-    async (catalogItemId) => {
+    async (catalogItemId, dropPoint) => {
       const catalogItem = catalog.find((c) => c.id === catalogItemId);
       if (!catalogItem) return;
 
       pushHistory();
-      const position = spawnPosition(spawnCountRef.current++, room?.ground_plane_offset);
+      const position = dropPoint
+        ? { x: dropPoint.x, y: 0, z: dropPoint.z }
+        : spawnPosition(spawnCountRef.current++);
 
       await runSave(async () => {
         const created = await addModel(projectId, {
@@ -190,6 +201,12 @@ export default function Editor() {
   );
 
   const handleSelectItem = useCallback((id) => setSelectedId(id), []);
+
+  /** Catalog lookup for the renderer, which sizes each model from its entry's dimensions. */
+  const catalogById = useMemo(
+    () => Object.fromEntries(catalog.map((c) => [c.id, c])),
+    [catalog]
+  );
 
   /**
    * Applies the edit locally straight away and debounces the write. The inspector's number
@@ -336,15 +353,19 @@ export default function Editor() {
         <Viewport
           room={room}
           placedItems={placedItems}
+          catalogById={catalogById}
           selectedId={selectedId}
           transformMode={transformMode}
           gridSnap={gridSnap}
+          navMode={navMode}
           canUndo={historyRef.current.length > 0}
           onSetTransformMode={setTransformMode}
+          onSetNavMode={setNavMode}
           onToggleGridSnap={() => setGridSnap((v) => !v)}
           onUndo={handleUndo}
           onResetRoom={handleResetRoom}
           onSelectItem={handleSelectItem}
+          onUpdateItem={handleUpdateItem}
           onDropItem={handleAddItem}
         />
         <Inspector

@@ -1,5 +1,6 @@
-import { Move, RotateCw, Maximize, Grid3x3, Undo2, RotateCcw } from 'lucide-react';
+import { Move, RotateCw, Maximize, Grid3x3, Undo2, RotateCcw, Orbit, Footprints } from 'lucide-react';
 import Viewfinder from '@/components/Viewfinder';
+import RoomScene from './scene/RoomScene';
 
 const TRANSFORM_MODES = [
   { key: 'move', label: 'Move', icon: Move },
@@ -7,38 +8,38 @@ const TRANSFORM_MODES = [
   { key: 'scale', label: 'Scale', icon: Maximize },
 ];
 
+const NAV_MODES = [
+  { key: 'orbit', label: 'Orbit the room', icon: Orbit },
+  { key: 'walk', label: 'Walk around inside', icon: Footprints },
+];
+
 /**
- * Center pane — the 3D viewport shell.
+ * Centre pane — the 3D viewport.
  *
- * Still a shell: #splat-viewport is the reserved mount point that the renderer will fill.
- * Everything it needs is on the element as data attributes — the Marble collider mesh URL
- * and the ground-plane offset that furniture sits on — so wiring the renderer in is a
- * matter of reading them, not of plumbing new state through here.
+ * The renderer lives in scene/RoomScene; this is the chrome around it. The toolbar's two
+ * halves do different jobs: the transform modes drive the gizmo on the selected piece, and
+ * only mean anything in orbit mode, while the nav modes decide whether you're arranging the
+ * room from outside or standing in it.
  */
 export default function Viewport({
   room,
   placedItems,
+  catalogById,
   selectedId,
   transformMode,
   gridSnap,
+  navMode,
   canUndo,
   onSetTransformMode,
+  onSetNavMode,
   onToggleGridSnap,
   onUndo,
   onResetRoom,
   onSelectItem,
+  onUpdateItem,
   onDropItem,
 }) {
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    const catalogItemId = e.dataTransfer.getData('text/plain');
-    if (catalogItemId) onDropItem(catalogItemId);
-  };
+  const arranging = navMode === 'orbit';
 
   return (
     <div className="flex-1 relative flex flex-col bg-background min-w-0">
@@ -48,13 +49,14 @@ export default function Viewport({
         <div className="flex items-center gap-0.5">
           {TRANSFORM_MODES.map((mode) => {
             const Icon = mode.icon;
-            const active = transformMode === mode.key;
+            const active = arranging && transformMode === mode.key;
             return (
               <button
                 key={mode.key}
                 onClick={() => onSetTransformMode(mode.key)}
-                title={mode.label}
-                className={`p-2 rounded-md transition-colors ${
+                disabled={!arranging}
+                title={arranging ? mode.label : `${mode.label} — switch to orbit to arrange`}
+                className={`p-2 rounded-md transition-colors disabled:opacity-30 ${
                   active
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:bg-muted'
@@ -71,8 +73,9 @@ export default function Viewport({
         {/* Grid snap toggle */}
         <button
           onClick={onToggleGridSnap}
+          disabled={!arranging}
           title="Grid snap"
-          className={`p-2 rounded-md transition-colors ${
+          className={`p-2 rounded-md transition-colors disabled:opacity-30 ${
             gridSnap
               ? 'bg-secondary/20 text-secondary'
               : 'text-muted-foreground hover:bg-muted'
@@ -80,6 +83,30 @@ export default function Viewport({
         >
           <Grid3x3 className="w-4 h-4" />
         </button>
+
+        <div className="w-px h-6 bg-border/60 mx-1" />
+
+        {/* Orbit / walk */}
+        <div className="flex items-center gap-0.5">
+          {NAV_MODES.map((mode) => {
+            const Icon = mode.icon;
+            const active = navMode === mode.key;
+            return (
+              <button
+                key={mode.key}
+                onClick={() => onSetNavMode(mode.key)}
+                title={mode.label}
+                className={`p-2 rounded-md transition-colors ${
+                  active
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+              </button>
+            );
+          })}
+        </div>
 
         <div className="w-px h-6 bg-border/60 mx-1" />
 
@@ -102,93 +129,70 @@ export default function Viewport({
       </div>
 
       {/* Viewport canvas with viewfinder */}
-      <div
-        className="flex-1 p-4"
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-      >
+      <div className="flex-1 p-4">
         <Viewfinder
           bottomLabels={[
-            { text: transformMode, dot: true },
+            { text: arranging ? transformMode : 'walking', dot: true },
             { text: gridSnap ? 'snap on' : 'snap off' },
           ]}
         >
-          <div
-            id="splat-viewport"
-            data-collider-mesh-url={room?.collider_mesh_url || ''}
-            data-splat-url={room?.splat_url || ''}
-            data-ground-plane-offset={room?.ground_plane_offset ?? 0}
-            data-metric-scale-factor={room?.metric_scale_factor ?? 1}
-            className="w-full h-full rounded-md bg-foreground/[0.03] border border-border/30 relative overflow-hidden"
-          >
-            {/* Marble's panorama of the real room, until the renderer takes over */}
-            {room?.pano_url && (
-              <img
-                src={room.pano_url}
-                alt=""
-                className="absolute inset-0 w-full h-full object-cover opacity-40"
-              />
-            )}
+          <RoomScene
+            room={room}
+            placedItems={placedItems}
+            catalogById={catalogById}
+            selectedId={selectedId}
+            transformMode={transformMode}
+            gridSnap={gridSnap}
+            navMode={navMode}
+            onSelectItem={onSelectItem}
+            onUpdateItem={onUpdateItem}
+            onDropItem={onDropItem}
+          />
 
-            {/* Placeholder grid pattern */}
-            <div
-              className="absolute inset-0 opacity-[0.04]"
-              style={{
-                backgroundImage:
-                  'linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)',
-                backgroundSize: '32px 32px',
-              }}
-            />
+          {/* Empty state — sits over the scene so the room is still visible behind it. */}
+          {placedItems.length === 0 && (
+            <div className="absolute inset-x-0 top-16 flex flex-col items-center text-center px-6 pointer-events-none">
+              <p className="font-body text-sm text-muted-foreground/70 max-w-xs bg-background/70 backdrop-blur-sm rounded px-3 py-2">
+                Drag furniture from the catalog onto the room, or tap an item to place it.
+              </p>
+            </div>
+          )}
 
-            {/* Empty state */}
-            {placedItems.length === 0 && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-                <p className="font-heading text-lg text-muted-foreground/60 mb-1">
-                  Your room scene
+          {/* Scene list — clicking a small model in 3D is fiddly; this is the reliable way. */}
+          {placedItems.length > 0 && arranging && (
+            <div className="absolute bottom-3 left-3 max-w-[220px]">
+              <div className="bg-card/90 backdrop-blur-sm rounded-md border border-border/60 shadow-sm overflow-hidden">
+                <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-1.5 border-b border-border/40">
+                  Scene · {placedItems.length} {placedItems.length === 1 ? 'item' : 'items'}
                 </p>
-                <p className="font-body text-sm text-muted-foreground/50 max-w-xs">
-                  Drag furniture from the catalog onto this viewport, or tap an
-                  item to place it. The 3D renderer will fill this space.
-                </p>
-              </div>
-            )}
-
-            {/* Scene items overlay — placeholder for 3D selection */}
-            {placedItems.length > 0 && (
-              <div className="absolute bottom-3 left-3 max-w-[220px]">
-                <div className="bg-card/90 backdrop-blur-sm rounded-md border border-border/60 shadow-sm overflow-hidden">
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-1.5 border-b border-border/40">
-                    Scene · {placedItems.length} {placedItems.length === 1 ? 'item' : 'items'}
-                  </p>
-                  <div className="max-h-[200px] overflow-y-auto">
-                    {placedItems.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => onSelectItem(item.id)}
-                        className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${
-                          selectedId === item.id
-                            ? 'bg-destructive/10'
-                            : 'hover:bg-muted'
+                <div className="max-h-[200px] overflow-y-auto">
+                  {placedItems.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => onSelectItem(item.id)}
+                      className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${
+                        selectedId === item.id
+                          ? 'bg-destructive/10'
+                          : 'hover:bg-muted'
+                      }`}
+                    >
+                      <span
+                        className={`w-1 h-6 rounded-full flex-shrink-0 ${
+                          selectedId === item.id ? 'bg-destructive' : 'bg-transparent'
                         }`}
-                      >
-                        <span
-                          className={`w-1 h-6 rounded-full flex-shrink-0 ${
-                            selectedId === item.id ? 'bg-destructive' : 'bg-transparent'
-                          }`}
-                        />
-                        <span className="font-body text-xs font-medium truncate">
-                          {item.name}
-                        </span>
-                        <span className="font-mono text-[10px] text-muted-foreground ml-auto">
-                          {item.position.x.toFixed(1)},{item.position.z.toFixed(1)}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                      />
+                      <span className="font-body text-xs font-medium truncate">
+                        {item.name}
+                      </span>
+                      <span className="font-mono text-[10px] text-muted-foreground ml-auto">
+                        {item.position.x.toFixed(1)},{item.position.z.toFixed(1)}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </Viewfinder>
       </div>
     </div>
