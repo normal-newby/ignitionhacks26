@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
-import { Box3, MeshBasicMaterial } from 'three';
+import { Box3, MeshBasicMaterial, Vector3 } from 'three';
 
 /**
  * The scanned room itself — Marble's collider mesh.
@@ -47,7 +47,13 @@ function scanMaterial() {
   return new MeshBasicMaterial({ vertexColors: true, toneMapped: false });
 }
 
-export default function RoomShell({ url, groundPlaneOffset = 0, metricScaleFactor = 1, visible = true }) {
+export default function RoomShell({
+  url,
+  groundPlaneOffset = 0,
+  metricScaleFactor = 1,
+  visible = true,
+  onBounds,
+}) {
   const { scene } = useGLTF(url);
 
   // Cloned so React's reconciler owns an instance per mount; useGLTF caches the original and
@@ -63,15 +69,41 @@ export default function RoomShell({ url, groundPlaneOffset = 0, metricScaleFacto
     return clone;
   }, [scene]);
 
-  const floorLift = useMemo(() => {
-    // setFromObject walks node transforms, so this is the real floor, not just the raw
-    // POSITION accessor bounds. max, not min: Marble's frame is Y-down, so the floor is the
-    // largest y. The 180° flip below then turns that into a world floor at y=0.
+  /**
+   * The floor height and the room's world-space extent, off one measurement.
+   *
+   * `setFromObject` walks node transforms *and*, on first call, every vertex under them — 206k
+   * triangles' worth. So the world box is derived arithmetically from the local one rather
+   * than measured a second time: the transform applied below is axis-aligned (a uniform scale,
+   * a 180° turn about X, a lift along Y), and an axis-aligned box under an axis-aligned
+   * transform maps exactly. The flip is why y and z swap their min and max.
+   *
+   * `max`, not `min`, for the floor: Marble's frame is Y-down, so the floor is the largest y.
+   * The flip then turns that into a world floor at y=0.
+   */
+  const { floorLift, bounds } = useMemo(() => {
     const box = new Box3().setFromObject(model);
-    return Number.isFinite(box.max.y)
-      ? box.max.y * metricScaleFactor
-      : groundPlaneOffset * metricScaleFactor;
+    const s = metricScaleFactor;
+
+    if (!Number.isFinite(box.max.y) || !Number.isFinite(box.min.y)) {
+      return { floorLift: groundPlaneOffset * s, bounds: null };
+    }
+
+    const lift = box.max.y * s;
+    return {
+      floorLift: lift,
+      bounds: new Box3(
+        new Vector3(box.min.x * s, -box.max.y * s + lift, -box.max.z * s),
+        new Vector3(box.max.x * s, -box.min.y * s + lift, -box.min.z * s)
+      ),
+    };
   }, [model, metricScaleFactor, groundPlaneOffset]);
+
+  // Handed up so the camera can be put inside the room rather than at the world origin, which
+  // on a scan whose frame isn't centred on the room is often inside a wall.
+  useEffect(() => {
+    if (bounds) onBounds?.(bounds);
+  }, [bounds, onBounds]);
 
   return (
     <primitive

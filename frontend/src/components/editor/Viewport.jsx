@@ -1,4 +1,5 @@
-import { Move, RotateCw, Maximize, Grid3x3, Undo2, RotateCcw, Orbit, Footprints, Check, Sparkles, Boxes } from 'lucide-react';
+import { Move, RotateCw, Maximize, Grid3x3, Undo2, RotateCcw, Orbit, Footprints, Check, Sparkles, Boxes, MousePointerClick } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import Viewfinder, { ViewfinderLabels } from '@/components/Viewfinder';
 import RoomScene from './scene/RoomScene';
 
@@ -53,6 +54,20 @@ export default function Viewport({
   onDropItem,
 }) {
   const arranging = navMode === 'orbit';
+  /**
+   * Whether walk mode currently has the pointer. Read straight off the document rather than
+   * plumbed out of WalkControls: the lock is browser state, it can end without us asking
+   * (Escape, tab switch, losing focus), and `pointerlockchange` is the one event that catches
+   * every one of those.
+   */
+  const [pointerLocked, setPointerLocked] = useState(false);
+
+  useEffect(() => {
+    const onChange = () => setPointerLocked(Boolean(document.pointerLockElement));
+    document.addEventListener('pointerlockchange', onChange);
+    return () => document.removeEventListener('pointerlockchange', onChange);
+  }, []);
+
   const hasSplat = Boolean(room?.splat_url);
   const hasHighRes = Boolean(room?.splat_url_full_res);
 
@@ -213,6 +228,27 @@ export default function Viewport({
             onDropItem={onDropItem}
           />
 
+          {/*
+            Walk mode's call to action.
+
+            Walking needs the pointer captured, and the only way to capture it is a click the
+            user has to know to make — an uncaptured walk mode otherwise looks like a camera
+            that has simply stopped responding. `pointer-events-none` matters here: this sits
+            over the canvas, and the click it's asking for has to reach the canvas underneath
+            to trigger the lock at all.
+          */}
+          {!arranging && !pointerLocked && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="flex flex-col items-center gap-1 px-5 py-3 rounded-md bg-background/80 border border-border/60 shadow-sm text-center">
+                <MousePointerClick className="w-5 h-5 text-primary" />
+                <p className="font-body text-sm font-medium">Click the room to look around</p>
+                <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  WASD to move · Esc to get the cursor back
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Empty state — sits over the scene so the room is still visible behind it. */}
           {placedItems.length === 0 && (
             <div className="absolute inset-x-0 top-16 flex flex-col items-center text-center px-6 pointer-events-none">
@@ -232,14 +268,19 @@ export default function Viewport({
             what makes "they don't overlap" a property of the layout rather than something to
             re-check by eye every time one of them grows.
 
-            The two outer columns are `flex-1`, so they're always equal width and the middle
-            one is genuinely centred; `min-w-0` lets them shrink instead of pushing it off
-            centre. The row itself is click-through, and each occupied cell turns pointer
-            events back on — otherwise the empty columns would eat drags meant for the room.
+            The two outer columns are `flex-none` — sized to the scene list and the Done
+            button, and never squeezed below them — and the middle one takes whatever is left
+            and wraps its text into it. That ordering is deliberate: the hint is the only thing
+            here that can afford to lose a line, and if the sides were the ones that shrank,
+            the Done button would overflow its cell and land back on top of the labels. So the
+            row degrades by wrapping rather than by overlapping, at any window width.
+
+            The row itself is click-through, and each occupied cell turns pointer events back
+            on — otherwise the empty columns would eat drags meant for the room.
           */}
           <div className="absolute inset-x-3 bottom-3 z-10 flex items-end gap-3 pointer-events-none">
             {/* Left: scene list — clicking a small model in 3D is fiddly; this is reliable. */}
-            <div className="flex-1 min-w-0 flex justify-start">
+            <div className="flex-none flex justify-start">
               {placedItems.length > 0 && arranging && (
                 <div className="pointer-events-auto max-w-[220px] bg-card/90 rounded-md border border-border/60 shadow-sm overflow-hidden">
                   <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-1.5 border-b border-border/40">
@@ -274,13 +315,21 @@ export default function Viewport({
               )}
             </div>
 
-            {/* Centre: the walk hint stacked above the status labels, never across them. */}
-            <div className="flex-none flex flex-col items-center gap-1.5">
-              {!arranging && (
-                <p className="font-mono text-[10px] uppercase tracking-wider text-primary/90 bg-background/70 px-3 py-1 rounded">
-                  Click to look · WASD to move · Shift to hurry · Esc to release
-                </p>
-              )}
+            {/* Centre: the controls hint stacked above the status labels, never across them.
+                Each mode gets its own, because the two share no bindings at all — and in walk
+                mode what to say depends on whether the pointer is captured yet. */}
+            <div className="flex-1 min-w-0 flex flex-col items-center gap-1.5">
+              {/* Shrinkable and wrapping, not `whitespace-nowrap`: the orbit line is the
+                  longest string in this row, and pinned at max-content it pushed straight
+                  through the Done button on a narrow viewport. Wrapping is a worse-looking
+                  fallback than a single line and a much better one than an overlap. */}
+              <p className="max-w-full font-mono text-[10px] uppercase tracking-wider text-primary/90 bg-background/70 px-3 py-1 rounded text-center">
+                {arranging
+                  ? 'Drag to orbit · Right-drag to pan · Scroll to zoom'
+                  : pointerLocked
+                    ? 'WASD to move · Shift to hurry · Esc to release the cursor'
+                    : 'Click the room to start looking around'}
+              </p>
               <ViewfinderLabels
                 labels={[
                   { text: arranging ? transformMode : 'walking', dot: true },
@@ -294,7 +343,7 @@ export default function Viewport({
 
             {/* Right: Done — the way out of the gizmo. Clicking empty space and Escape both
                 work too, but neither is discoverable mid-drag with a piece selected. */}
-            <div className="flex-1 min-w-0 flex justify-end">
+            <div className="flex-none flex justify-end">
               {selectedId && arranging && (
                 <button
                   onClick={() => onSelectItem(null)}

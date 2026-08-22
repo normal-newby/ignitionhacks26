@@ -33,7 +33,9 @@ export function ViewfinderLabels({ labels = [] }) {
   if (labels.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-4 font-mono text-[10px] uppercase tracking-wider text-primary/80 bg-background/70 px-3 py-1 rounded">
+    // `max-w-full` + `flex-wrap`: this sits in a column that shrinks with the window, and
+    // without both it keeps its max-content width and spills over whatever is beside it.
+    <div className="flex flex-wrap justify-center items-center gap-x-4 gap-y-0.5 max-w-full font-mono text-[10px] uppercase tracking-wider text-primary/80 bg-background/70 px-3 py-1 rounded">
       {labels.map((label, i) => (
         <span key={i} className="flex items-center gap-1.5">
           {label.dot && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}

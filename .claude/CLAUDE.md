@@ -389,10 +389,37 @@ while walking it belongs to the pointer lock, and stealing it would leave you ca
 **Everything along the bottom edge of the viewport shares one flex row**, in `Viewport`. The
 scene list, the status labels and the Done button each used to pin *themselves* to `bottom-3`,
 and in walk mode a controls hint landed exactly on the labels — both claimed
-`left-1/2 -translate-x-1/2`. The row's outer columns are `flex-1 min-w-0` so they stay equal
-width and the middle one is genuinely centred, and the hint stacks *above* the labels rather
-than across them. `ViewfinderLabels` is exported separately from `Viewfinder` for this reason:
-the caller owns the position, so there's only ever one thing deciding that layout.
+`left-1/2 -translate-x-1/2`. `ViewfinderLabels` is exported separately from `Viewfinder` for
+this reason: the caller owns the position, so only one thing decides that layout.
+
+**Which cell shrinks is the load-bearing part.** The outer columns are `flex-none`, sized to
+the scene list and the Done button; the middle is `flex-1 min-w-0` and wraps into whatever is
+left. Both the hint and the labels carry `max-w-full`, and the labels `flex-wrap` — without
+those they keep their max-content width and spill straight over the neighbours no matter what
+the cells do. Getting this backwards is easy and the failure is quiet: with shrinkable sides,
+the Done button overflows its own cell and lands back on the labels at ~1024px, which is
+exactly the bug this row was built to end. Verified at 1024 and 1280, orbit and walk: no
+overlapping pairs.
+
+The controls hint is per-mode, and in walk mode per pointer-lock state — read off
+`document.pointerlockchange` in `Viewport` rather than plumbed out of `WalkControls`, since the
+lock can end without us asking (Escape, tab switch, lost focus). Unlocked walk mode also gets a
+centred call to action, because a walk mode that hasn't captured the pointer looks exactly like
+a camera that has stopped responding. It is `pointer-events-none`: the click it asks for has to
+reach the canvas underneath to trigger the lock at all.
+
+**The camera starts from the middle of the room, both modes** — `CameraRig`, off the collider
+mesh's world box, which `RoomShell` measures and hands up. Marble's frame is not centred on the
+room; on the test scan the room spans x -3.17..4.17, z -3.66..3.14, so the centre is (0.5,
+-0.26) and the world origin is nowhere near it. The old fixed `[3.2, 2.4, 3.6]` put the orbit
+camera at z=3.6 against a wall at z=3.14 — outside the room, looking at the back of a surface.
+RoomShell derives that box arithmetically from the `Box3` it already computes for the floor
+rather than measuring twice; the transform is axis-aligned, so it maps exactly, and a second
+`setFromObject` would walk all 206k triangles again.
+
+`OrbitControls` gets **no `target` prop**. The pivot is set imperatively in `CameraRig`, because
+OrbitControls pans by moving its own target and a prop would re-apply on every render and yank
+it back mid-pan.
 
 ## Commands
 
