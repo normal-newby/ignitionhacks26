@@ -1,6 +1,7 @@
 package ca.sjn.ignitionhacks26.service;
 
 import ca.sjn.ignitionhacks26.entity.CatalogItemEntity;
+import ca.sjn.ignitionhacks26.entity.UserEntity;
 import ca.sjn.ignitionhacks26.repository.CatalogItemRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,16 @@ import java.util.UUID;
  * Owns the furniture catalog: the Postgres rows and, through {@link StorageService}, the GLB
  * and thumbnail objects behind them. Every catalog write goes through here so uploading a
  * file and recording its URL can't drift apart.
+ *
+ * <p>Three kinds of entry share one table, and the difference is entirely in the owner column:
+ *
+ * <ul>
+ *   <li><b>Seeded</b> — no owner, always public. They belong to the app, and attaching their
+ *       GLBs is shared setup work, so anyone signed in can edit them.
+ *   <li><b>Shared uploads</b> — an owner and {@code isPublic}. Everyone can place them; only
+ *       the uploader can change or delete them.
+ *   <li><b>Private uploads</b> — an owner and nothing else. Only the uploader sees them at all.
+ * </ul>
  */
 @Service
 public class CatalogService {
@@ -33,19 +44,25 @@ public class CatalogService {
         this.storage = storage;
     }
 
+    /** Everything public, plus this user's own private uploads. */
     @Transactional(readOnly = true)
-    public List<CatalogItemEntity> list() {
-        return repository.findAllByOrderByCategoryAscSortOrderAscNameAsc();
+    public List<CatalogItemEntity> listVisibleTo(UserEntity user) {
+        return repository.findVisibleTo(user.getId());
     }
 
     @Transactional
-    public CatalogItemEntity create(CatalogItemInput input, MultipartFile model, MultipartFile thumbnail) {
+    public CatalogItemEntity create(UserEntity owner, CatalogItemInput input,
+                                    MultipartFile model, MultipartFile thumbnail) {
         CatalogItemEntity item = new CatalogItemEntity();
+        item.setOwner(owner);
         item.setName(requireName(input.name()));
         item.setCategory(normaliseCategory(input.category()));
         item.setWidthCm(dimension(input.width(), 50));
         item.setDepthCm(dimension(input.depth(), 50));
         item.setHeightCm(dimension(input.height(), 50));
+        // Private unless the uploader said otherwise: sharing a piece with everyone should be
+        // something you chose, not something you forgot to turn off.
+        item.setPublic(Boolean.TRUE.equals(input.isPublic()));
         item.setBuiltIn(false);
         // User uploads sort after the seeded entries in their category.
         item.setSortOrder(1_000);
@@ -70,11 +87,16 @@ public class CatalogService {
      * Partial update. A null field means "leave alone", matching how the model transform
      * PATCH behaves. Replacing a file deletes the object it replaced — the row only ever
      * points at one GLB, so the old one is unreachable the moment this commits.
+     *
+     * <p>Empty when the item doesn't exist; throws when it exists but isn't this user's to
+     * edit, so the caller can tell 404 from 403.
      */
     @Transactional
-    public Optional<CatalogItemEntity> update(UUID id, CatalogItemInput input,
+    public Optional<CatalogItemEntity> update(UserEntity user, UUID id, CatalogItemInput input,
                                               MultipartFile model, MultipartFile thumbnail) {
         return repository.findById(id).map(item -> {
+            requireEditable(user, item);
+
             if (input.name() != null) {
                 item.setName(requireName(input.name()));
             }
@@ -89,6 +111,10 @@ public class CatalogService {
             }
             if (input.height() != null) {
                 item.setHeightCm(dimension(input.height(), item.getHeightCm()));
+            }
+            if (input.isPublic() != null && item.getOwner() != null) {
+                // Seeded entries stay public; there's no owner to make them private for.
+                item.setPublic(input.isPublic());
             }
 
             if (present(model)) {
@@ -117,10 +143,14 @@ public class CatalogService {
      * their models carry their own copy of the URL, so an existing layout keeps rendering
      * from the same MinIO object — which is why the bucket delete is best-effort rather than
      * something we'd want to be strict about.
+     *
+     * <p>That is also why deleting a shared piece isn't destructive to anyone else's room, and
+     * why it's allowed at all.
      */
     @Transactional
-    public boolean delete(UUID id) {
+    public boolean delete(UserEntity user, UUID id) {
         return repository.findById(id).map(item -> {
+            requireEditable(user, item);
             repository.delete(item);
             storage.deleteQuietly(item.getModelObjectKey());
             storage.deleteQuietly(item.getThumbnailObjectKey());
@@ -130,9 +160,29 @@ public class CatalogService {
 
     /** Metadata fields from the multipart form; all optional so PATCH can be partial. */
     public record CatalogItemInput(String name, String category,
-                                   Integer width, Integer depth, Integer height) {}
+                                   Integer width, Integer depth, Integer height,
+                                   Boolean isPublic) {}
 
     /* ------------------------------------------------------------------ */
+
+    /**
+     * Anyone may edit a seeded entry — they're the app's, and someone has to be able to attach
+     * their GLBs. An uploaded piece belongs to whoever uploaded it, whether or not they shared
+     * it: making a piece public lets others place it, not rename or delete it.
+     */
+    private static void requireEditable(UserEntity user, CatalogItemEntity item) {
+        UserEntity owner = item.getOwner();
+        if (owner != null && !owner.getId().equals(user.getId())) {
+            throw new AccessDeniedException("That catalog piece belongs to someone else.");
+        }
+    }
+
+    /** Thrown for a real item the caller has no claim to; the controller turns it into a 403. */
+    public static class AccessDeniedException extends RuntimeException {
+        public AccessDeniedException(String message) {
+            super(message);
+        }
+    }
 
     private static boolean present(MultipartFile file) {
         return file != null && !file.isEmpty();

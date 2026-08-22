@@ -51,6 +51,7 @@ public class CatalogSeeder implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         if (repository.count() > 0) {
+            publishOwnerlessEntries();
             return;
         }
 
@@ -63,10 +64,32 @@ public class CatalogSeeder implements ApplicationRunner {
             item.setDepthCm(seed.depth());
             item.setHeightCm(seed.height());
             item.setBuiltIn(true);
+            // No owner, so nobody could ever mark it shared — but every account needs to see
+            // it, and visibility is decided by this flag alone.
+            item.setPublic(true);
             item.setSortOrder(i);
             repository.save(item);
         }
 
         log.info("Seeded {} catalog entries. Attach GLBs to them at /catalog.", SEEDS.size());
+    }
+
+    /**
+     * Makes owner-less entries visible again on a database that predates the public flag.
+     *
+     * <p>{@code ddl-auto=update} adds {@code is_public} defaulted to false, which would hide
+     * every already-seeded piece from everyone — an owner-less private row belongs to nobody
+     * and so shows up for nobody. Idempotent: after the first boot it finds nothing to change.
+     */
+    private void publishOwnerlessEntries() {
+        List<CatalogItemEntity> stranded = repository.findByOwnerIsNull().stream()
+                .filter(item -> !item.isPublic())
+                .toList();
+        if (stranded.isEmpty()) {
+            return;
+        }
+        stranded.forEach(item -> item.setPublic(true));
+        repository.saveAll(stranded);
+        log.info("Marked {} owner-less catalog entries public.", stranded.size());
     }
 }

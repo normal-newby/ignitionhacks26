@@ -15,7 +15,8 @@ public interface RoomRepository extends JpaRepository<RoomEntity, UUID> {
     /** Drives the poller: every room whose Marble job is still in flight. */
     List<RoomEntity> findByStatusInAndOperationIdIsNotNull(Collection<RoomStatus> statuses);
 
-    List<RoomEntity> findAllByOrderByCreatedAtDesc();
+    /** The project grid. Scoped to one owner — nobody ever sees the whole table. */
+    List<RoomEntity> findByOwnerIdOrderByCreatedAtDesc(UUID ownerId);
 
     /**
      * Rooms finished before we started keeping every SPZ tier. Their operation is still on

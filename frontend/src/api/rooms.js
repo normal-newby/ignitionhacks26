@@ -7,18 +7,25 @@
  */
 
 import { errorMessageFrom } from './errors';
+import { authHeaders, handleUnauthorized } from './session';
 
 const BASE = '/api';
 
 async function request(path, { method = 'GET', body } = {}) {
     const res = await fetch(`${BASE}${path}`, {
         method,
-        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        headers: {
+            ...authHeaders(),
+            ...(body ? { 'Content-Type': 'application/json' } : {}),
+        },
         body: body ? JSON.stringify(body) : undefined,
     });
 
     // A missing room is an empty result for callers, not an error — the pages redirect on null.
+    // Someone else's room is a 404 too, on purpose: see RoomService.getRoom.
     if (res.status === 404) return null;
+
+    if (res.status === 401) handleUnauthorized();
 
     if (!res.ok) {
         const body = await res.text().catch(() => '');
@@ -66,6 +73,8 @@ export function createRoom({ name, video, onProgress }) {
 
         const xhr = new XMLHttpRequest();
         xhr.open('POST', `${BASE}/rooms`);
+        // Same header the fetch path sends; XHR is here only for upload progress.
+        Object.entries(authHeaders()).forEach(([key, value]) => xhr.setRequestHeader(key, value));
 
         if (onProgress) {
             xhr.upload.onprogress = (e) => {
@@ -81,6 +90,7 @@ export function createRoom({ name, video, onProgress }) {
                     reject(new Error('The server returned a response we could not read.'));
                 }
             } else {
+                if (xhr.status === 401) handleUnauthorized();
                 reject(new Error(errorMessageFrom(xhr.responseText, xhr.status)));
             }
         };

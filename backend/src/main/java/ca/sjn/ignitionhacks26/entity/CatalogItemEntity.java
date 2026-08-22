@@ -40,6 +40,29 @@ public class CatalogItemEntity {
     @Column(nullable = false)
     private String category;
 
+    /**
+     * Who uploaded it. Null for the seeded entries, which belong to the app rather than to a
+     * person — those are visible and editable to everyone, since attaching their GLBs is a
+     * shared setup job rather than one user's work.
+     *
+     * <p>Eager, unlike a room's owner: every catalog read serialises the owner's display name,
+     * and the list query join-fetches this so the whole rail is still one round trip.
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "owner_id")
+    private UserEntity owner;
+
+    /**
+     * Whether everyone can place this piece. False means only the owner sees it in the rail —
+     * the uploader's private catalog. Seeded entries are public by definition.
+     *
+     * <p>The explicit {@code columnDefinition} carries the default so that {@code
+     * ddl-auto=update} can add this column to a table that already has rows: Postgres refuses
+     * a plain {@code add column ... not null} when there is existing data to fill.
+     */
+    @Column(name = "is_public", nullable = false, columnDefinition = "boolean not null default false")
+    private boolean isPublic = false;
+
     /** Public MinIO URL of the GLB. Null for an entry still waiting on an asset. */
     @Column(name = "model_url", length = 2048)
     private String modelUrl;

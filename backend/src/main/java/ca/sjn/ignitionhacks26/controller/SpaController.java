@@ -10,7 +10,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @Controller
 public class SpaController {
 
-    @RequestMapping(value = {"/", "/upload", "/catalog", "/processing/**", "/editor/**"})
+    @RequestMapping(value = {"/", "/login", "/rooms", "/upload", "/catalog",
+            "/processing/**", "/editor/**"})
     public String forwardToIndex() {
         return "forward:/index.html";
     }

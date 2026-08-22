@@ -78,7 +78,7 @@ export default function Processing() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <p className="text-muted-foreground mb-4 font-body">Room not found.</p>
-          <Link to="/" className="text-primary underline font-body">Back to projects</Link>
+          <Link to="/rooms" className="text-primary underline font-body">Back to projects</Link>
         </div>
       </div>
     );
@@ -91,7 +91,7 @@ export default function Processing() {
     <div className="min-h-screen bg-background flex flex-col animate-fade-in">
       <div className="px-6 py-5">
         <Link
-          to="/"
+          to="/rooms"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors font-body"
         >
           <ArrowLeft className="w-4 h-4" />

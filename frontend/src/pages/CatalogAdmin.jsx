@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Trash2, Pencil, Check, X, Loader2, Box, AlertCircle, Sparkles } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import {
+  Plus, Trash2, Pencil, Check, X, Loader2, Box, AlertCircle, Sparkles, Globe, Lock,
+} from 'lucide-react';
 import {
   CATEGORIES,
   listCatalogItems,
@@ -14,7 +16,33 @@ const EMPTY_ITEM = {
   name: '',
   category: 'Seating',
   default_dimensions: { width: 50, depth: 50, height: 50 },
+  // Private by default. Sharing a piece with everyone should be a thing you chose, not a
+  // thing you forgot to turn off — the backend defaults the same way.
+  is_public: false,
 };
+
+/**
+ * The owner filter. `mine` is computed per request by the server, so this is a plain partition
+ * of the one list rather than a second fetch.
+ */
+const OWNER_FILTERS = [
+  { id: 'all', label: 'All', matches: () => true },
+  { id: 'mine', label: 'Mine', matches: (item) => item.mine },
+  { id: 'others', label: 'Not mine', matches: (item) => !item.mine },
+];
+
+/**
+ * Whether this account may change an entry — `editable` straight off the item, not re-derived.
+ *
+ * Two different things make it true server-side: your own uploads are yours, and the built-in
+ * entries belong to nobody, so anyone signed in can attach their GLBs. Someone else's shared
+ * upload is placeable but not editable. Deriving that here from `mine || built_in` is exactly
+ * the bug this replaced — it disagreed with the server on owner-less rows — so the rule stays
+ * in one place and this just reads the answer.
+ */
+function canEdit(item) {
+  return item.editable;
+}
 
 /** Mirrors the server-side caps in MinioProperties — checked here only to fail before upload. */
 const MAX_MODEL_MB = 20;
@@ -75,6 +103,7 @@ function FileField({ id, label, inputRef, accept, file, hint, onPick }) {
  */
 export default function CatalogAdmin() {
   const [items, setItems] = useState([]);
+  const [ownerFilter, setOwnerFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -109,6 +138,11 @@ export default function CatalogAdmin() {
     ? items.find((i) => i.id === editingId)
     : null;
 
+  const visibleItems = useMemo(() => {
+    const filter = OWNER_FILTERS.find((f) => f.id === ownerFilter) ?? OWNER_FILTERS[0];
+    return items.filter(filter.matches);
+  }, [items, ownerFilter]);
+
   const startCreate = () => {
     setError('');
     setEstimateNote('');
@@ -124,6 +158,7 @@ export default function CatalogAdmin() {
       name: item.name,
       category: item.category,
       default_dimensions: { ...item.default_dimensions },
+      is_public: item.is_public,
     });
   };
 
@@ -220,9 +255,9 @@ export default function CatalogAdmin() {
     <div className="max-w-5xl mx-auto px-6 py-10 animate-fade-in">
       <div className="flex items-end justify-between mb-8">
         <div>
-          <h1 className="font-heading text-lg uppercase text-[#252525]">Catalog admin</h1>
+          <h1 className="font-heading text-lg uppercase text-[#252525]">Catalog</h1>
           <p className="font-terminal text-base text-[#5a6c80] mt-1">
-            Manage the furniture pieces available in the editor.
+            Your uploads, plus every piece shared with everyone.
           </p>
         </div>
         <button
@@ -339,6 +374,41 @@ export default function CatalogAdmin() {
                 </p>
               )}
             </div>
+
+            {/* Visibility. Seeded entries have no owner to keep them private for, so the
+                control is shown disabled rather than hidden — hiding it would make the row
+                look like it was missing a setting the others have. */}
+            <div className="md:col-span-2">
+              <span className="block font-heading text-[9px] uppercase text-[#1e40af] mb-1.5">
+                Visibility
+              </span>
+              <label
+                className={`flex items-start gap-3 p-3 border-2 border-[#1e40af] bg-[#cbd5e1] ${
+                  editingItem?.built_in ? 'opacity-60' : 'cursor-pointer'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={draft.is_public}
+                  disabled={busy || editingItem?.built_in}
+                  onChange={(e) => setDraft({ ...draft, is_public: e.target.checked })}
+                  className="mt-0.5 w-4 h-4 flex-shrink-0 accent-[#3b82f6]"
+                />
+                <span className="min-w-0">
+                  <span className="flex items-center gap-1.5 font-terminal text-base uppercase text-[#252525]">
+                    {draft.is_public ? <Globe className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                    Share with everyone
+                  </span>
+                  <span className="block font-mono text-[10px] text-[#5a6c80] mt-1">
+                    {editingItem?.built_in
+                      ? 'Built-in pieces are always available to everyone.'
+                      : draft.is_public
+                      ? 'Anyone can place this piece in their rooms. Only you can edit or delete it.'
+                      : 'Only you can see this piece. It stays out of everyone else’s catalog.'}
+                  </span>
+                </span>
+              </label>
+            </div>
           </div>
 
           {busy && progress > 0 && (
@@ -376,13 +446,39 @@ export default function CatalogAdmin() {
         </div>
       )}
 
+      {/* Owner filter. Counts are on the tabs because "Mine" being empty and "Mine" being
+          broken look identical without them. */}
+      <div className="flex flex-wrap items-center gap-1 mb-4">
+        {OWNER_FILTERS.map((filter) => {
+          const count = items.filter(filter.matches).length;
+          const active = filter.id === ownerFilter;
+          return (
+            <button
+              key={filter.id}
+              onClick={() => setOwnerFilter(filter.id)}
+              className={`px-3 py-1.5 font-terminal text-base uppercase border-2 border-[#1e40af] transition-colors ${
+                active
+                  ? 'bg-[#3b82f6] text-white'
+                  : 'bg-[#e2e8f0] text-[#252525] hover:bg-[#cbd5e1]'
+              }`}
+            >
+              {filter.label}
+              <span className={`ml-2 font-mono text-[10px] ${active ? 'text-white/80' : 'text-[#5a6c80]'}`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Items table */}
-      <div className="border-2 border-[#1e40af] overflow-hidden">
+      <div className="border-2 border-[#1e40af] overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="bg-muted/50 border-b border-border/60">
               <th className="text-left px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Item</th>
               <th className="text-left px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Category</th>
+              <th className="text-left px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Owner</th>
               <th className="text-left px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Model</th>
               <th className="text-left px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Dimensions</th>
               <th className="text-right px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Actions</th>
@@ -391,19 +487,23 @@ export default function CatalogAdmin() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
+                <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
                   <Loader2 className="w-5 h-5 animate-spin inline" />
                 </td>
               </tr>
             )}
-            {!loading && items.length === 0 && (
+            {!loading && visibleItems.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center font-body text-sm text-muted-foreground">
-                  The catalog is empty. Add an item to get started.
+                <td colSpan={6} className="px-4 py-10 text-center font-mono text-sm text-[#5a6c80]">
+                  {items.length === 0
+                    ? 'The catalog is empty. Add an item to get started.'
+                    : ownerFilter === 'mine'
+                    ? "You haven't uploaded anything yet."
+                    : 'Nothing here.'}
                 </td>
               </tr>
             )}
-            {items.map((item) => (
+            {visibleItems.map((item) => (
               <tr key={item.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
@@ -414,6 +514,21 @@ export default function CatalogAdmin() {
                   </div>
                 </td>
                 <td className="px-4 py-3 font-body text-sm text-muted-foreground">{item.category}</td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-body text-sm text-muted-foreground truncate max-w-[9rem]">
+                      {item.mine ? 'You' : item.owner_name}
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider ${
+                        item.is_public ? 'text-[#10b981]' : 'text-[#5a6c80]'
+                      }`}
+                    >
+                      {item.is_public ? <Globe className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                      {item.is_public ? 'Shared' : 'Private'}
+                    </span>
+                  </div>
+                </td>
                 <td className="px-4 py-3">
                   {item.model_asset_url ? (
                     <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-primary">
@@ -430,24 +545,33 @@ export default function CatalogAdmin() {
                   {item.default_dimensions.width}×{item.default_dimensions.depth}×{item.default_dimensions.height}cm
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center justify-end gap-1">
-                    <button
-                      onClick={() => startEdit(item)}
-                      disabled={busy}
-                      className="p-1.5 border-2 border-transparent text-[#5a6c80] hover:bg-[#cbd5e1] hover:text-[#252525] transition-colors disabled:opacity-40"
-                      title="Edit"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(item.id)}
-                      disabled={busy}
-                      className="p-1.5 border-2 border-transparent text-[#5a6c80] hover:bg-[#ef4444] hover:text-white transition-colors disabled:opacity-40"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {/* Someone else's shared piece is placeable but not editable, so its
+                      buttons are absent rather than disabled — a disabled control invites a
+                      click that will never work. */}
+                  {canEdit(item) ? (
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => startEdit(item)}
+                        disabled={busy}
+                        className="p-1.5 border-2 border-transparent text-[#5a6c80] hover:bg-[#cbd5e1] hover:text-[#252525] transition-colors disabled:opacity-40"
+                        title="Edit"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(item.id)}
+                        disabled={busy}
+                        className="p-1.5 border-2 border-transparent text-[#5a6c80] hover:bg-[#ef4444] hover:text-white transition-colors disabled:opacity-40"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-right font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
+                      Read only
+                    </p>
+                  )}
                 </td>
               </tr>
             ))}

@@ -122,7 +122,7 @@ export default function Editor() {
       .then((data) => {
         if (cancelled) return;
         if (!data) {
-          navigate('/');
+          navigate('/rooms');
           return;
         }
         if (data.status !== 'ready') {
@@ -134,7 +134,7 @@ export default function Editor() {
         setPlacedItems((data.models || []).map(toUi));
         spawnCountRef.current = (data.models || []).length;
       })
-      .catch(() => !cancelled && navigate('/'))
+      .catch(() => !cancelled && navigate('/rooms'))
       .finally(() => !cancelled && setLoading(false));
 
     return () => { cancelled = true; };

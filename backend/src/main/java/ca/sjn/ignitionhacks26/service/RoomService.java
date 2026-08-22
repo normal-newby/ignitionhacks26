@@ -4,6 +4,7 @@ import ca.sjn.ignitionhacks26.dto.MarbleAssets;
 import ca.sjn.ignitionhacks26.dto.MarbleOperation;
 import ca.sjn.ignitionhacks26.entity.RoomEntity;
 import ca.sjn.ignitionhacks26.entity.RoomStatus;
+import ca.sjn.ignitionhacks26.entity.UserEntity;
 import ca.sjn.ignitionhacks26.repository.RoomRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,7 +47,7 @@ public class RoomService {
      * <p>The video is spooled to a temp file before returning: Spring deletes the multipart
      * temp file when the request completes, so the async half needs its own copy.
      */
-    public RoomEntity createRoom(String name, MultipartFile video) {
+    public RoomEntity createRoom(UserEntity owner, String name, MultipartFile video) {
         if (video == null || video.isEmpty()) {
             throw new IllegalArgumentException("A video file is required to scan a room");
         }
@@ -58,6 +59,7 @@ public class RoomService {
         }
 
         RoomEntity room = new RoomEntity();
+        room.setOwner(owner);
         room.setName(name == null || name.isBlank() ? "Untitled room" : name.trim());
         room.setStatus(RoomStatus.PENDING);
         room.setProgressMessage("Queued for upload.");
@@ -80,21 +82,41 @@ public class RoomService {
     }
 
     @Transactional(readOnly = true)
-    public List<RoomEntity> listRooms() {
-        return roomRepository.findAllByOrderByCreatedAtDesc();
+    public List<RoomEntity> listRooms(UserEntity owner) {
+        return roomRepository.findByOwnerIdOrderByCreatedAtDesc(owner.getId());
     }
 
+    /**
+     * A room read, scoped to its owner.
+     *
+     * <p>Somebody else's room comes back empty rather than forbidden, and the controller turns
+     * that into the same 404 as a room id that was never real. A 403 would confirm the room
+     * exists, which is information the asker has no claim to.
+     */
     @Transactional(readOnly = true)
-    public Optional<RoomEntity> getRoom(UUID roomId) {
+    public Optional<RoomEntity> getRoom(UserEntity owner, UUID roomId) {
+        return roomRepository.findById(roomId).filter(room -> ownedBy(room, owner));
+    }
+
+    /**
+     * A room read with no owner check, for the background pipeline.
+     *
+     * <p>The generation and polling services run on a scheduler with nobody signed in, so they
+     * have no user to scope by and no request to reject. Named to be unmistakable at the call
+     * site: **nothing reachable from a controller may use this** — that's what
+     * {@link #getRoom(UserEntity, UUID)} is for.
+     */
+    @Transactional(readOnly = true)
+    public Optional<RoomEntity> findUnscoped(UUID roomId) {
         return roomRepository.findById(roomId);
     }
 
     @Transactional
-    public Optional<RoomEntity> rename(UUID roomId, String name) {
+    public Optional<RoomEntity> rename(UserEntity owner, UUID roomId, String name) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("A room name is required");
         }
-        return roomRepository.findById(roomId).map(room -> {
+        return getRoom(owner, roomId).map(room -> {
             room.setName(name.trim());
             return roomRepository.save(room);
         });
@@ -102,12 +124,19 @@ public class RoomService {
 
     /** Cascades to the room's models. */
     @Transactional
-    public boolean deleteRoom(UUID roomId) {
-        if (!roomRepository.existsById(roomId)) {
-            return false;
-        }
-        roomRepository.deleteById(roomId);
-        return true;
+    public boolean deleteRoom(UserEntity owner, UUID roomId) {
+        return getRoom(owner, roomId).map(room -> {
+            roomRepository.delete(room);
+            return true;
+        }).orElse(false);
+    }
+
+    /**
+     * Rooms scanned before accounts existed have no owner and so match nobody — the null check
+     * is what keeps them out of every user's grid rather than in everyone's.
+     */
+    private static boolean ownedBy(RoomEntity room, UserEntity owner) {
+        return room.getOwner() != null && room.getOwner().getId().equals(owner.getId());
     }
 
     @Transactional

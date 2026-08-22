@@ -87,10 +87,53 @@ Test early — generate one world, wait a few hours, confirm the URL still resol
 expires, add a re-hosting step (download on completion → push to S3-compatible storage →
 store our own URL). Don't build that fallback preemptively.
 
+## Accounts and ownership
+
+Everything except the landing page and the login screen requires an account. This is
+**identity, not security** — the whole session is an `X-User-Id` header carrying the user's
+UUID, and a UUID is not a secret, so anyone who knows another account's id can send it. That's
+deliberate and it's what "don't worry about authentication" bought. The ownership rules exist
+to keep one person's rooms out of another person's grid, not to withstand a forged header.
+Replacing it with a signed token is a change to `CurrentUserResolver` plus what the frontend
+stores from `/api/auth/*`; nothing downstream cares where its `UserEntity` came from.
+
+Passwords are BCrypt-hashed anyway, via **`spring-security-crypto` — not
+`spring-boot-starter-security`**. The starter would install a filter chain over every endpoint
+in the app; the crypto artifact alone carries no autoconfiguration at all. Don't "upgrade" to
+the starter without meaning to.
+
+- `@CurrentUser UserEntity` on a controller parameter is how a handler gets the caller.
+  `CurrentUserResolver` reads the header, loads the user, and 401s when it's missing or
+  unknown; `WebConfig` registers it. `required = false` makes the parameter nullable instead.
+- **Rooms are owner-scoped everywhere.** List, read, rename, delete, and every `/models`
+  endpoint under a room. Someone else's room id answers **404, not 403** — a 403 would confirm
+  the room exists, which the asker has no claim to. `/api/models/{id}` inherits the room's
+  owner; a placed model has none of its own.
+- **Rooms scanned before accounts existed have `owner_id` null and are visible to nobody.**
+  The null check in `RoomService.ownedBy` is what makes that true rather than the opposite; a
+  null owner matching every user would show everyone's rooms to everyone.
+- **The catalog has three kinds of row, and the difference is entirely the owner column.**
+  Seeded entries have no owner and are always public — anyone signed in can edit them, because
+  attaching their GLBs is shared setup work. Uploads belong to their uploader; `is_public`
+  decides whether anyone else sees them at all. Making a piece public lets others *place* it,
+  never rename or delete it. Edits to someone else's piece are 403.
+- `CatalogItemResponse` computes **`mine`, `editable` and `built_in` per request**, not from
+  storage. `mine` and `editable` are different questions: a built-in entry is editable by
+  anyone but is nobody's, so it is not `mine` and doesn't appear under the catalog's "Mine"
+  filter. `editable` exists so that rule lives in one place — the frontend used to derive it as
+  `mine || built_in` and **got it wrong on rows with no owner and a false `built_in` column**,
+  which is what a database predating the seeder's flag is full of. `CatalogAdmin.canEdit` now
+  just reads `item.editable`; don't re-derive it.
+- For the same reason `built_in` on the *response* means "has no owner", not the value of the
+  stored column. "Belongs to the app" is what the UI needs and what the permission check keys
+  off; the stored flag is only ever true for rows the seeder wrote.
+
 ## Data model (Postgres, `ddl-auto=update`)
 
-- **`rooms`** — one uploaded video → one Marble world → one furnishable room. Holds `name`,
-  `status`, `media_asset_id`, `operation_id`, `world_id`, the asset URLs,
+- **`users`** — `username` (unique, stored lower-cased), `display_name`, `password_hash`,
+  `created_at`. Nothing else; there is no role, no email, no verification.
+- **`rooms`** — one uploaded video → one Marble world → one furnishable room. Holds `owner_id`,
+  `name`, `status`, `media_asset_id`, `operation_id`, `world_id`, the asset URLs,
   `ground_plane_offset`, `metric_scale_factor`, `progress_message`, `error_message`,
   timestamps. All three SPZ tiers are stored (`splat_url` = 500k, plus `splat_url_100k` and
   `splat_url_full_res`) because **the tiers have unrelated file names** — full_res is
@@ -103,11 +146,23 @@ store our own URL). Don't build that fallback preemptively.
   yaw only), `scale`, plus **denormalised copies** of the catalog entry's `name`, `category`
   and `model_url` — snapshotting keeps a saved layout renderable even if the catalog entry
   behind it is later edited or deleted. Deliberately not an FK to `furniture_catalog`.
-- **`furniture_catalog`** — the placeable pieces. `name`, `category`, `model_url` +
-  `model_object_key`, `thumbnail_url` + `thumbnail_object_key`, `width_cm/depth_cm/height_cm`,
-  `built_in`, `sort_order`. The object keys are kept alongside the URLs because they're what
-  a delete needs to clean the bucket. `CatalogSeeder` writes the 14 starter entries on an
-  empty table — rows only, no binaries; see Storage rules.
+- **`furniture_catalog`** — the placeable pieces. `owner_id`, `is_public`, `name`, `category`,
+  `model_url` + `model_object_key`, `thumbnail_url` + `thumbnail_object_key`,
+  `width_cm/depth_cm/height_cm`, `built_in`, `sort_order`. The object keys are kept alongside
+  the URLs because they're what a delete needs to clean the bucket. `CatalogSeeder` writes the
+  14 starter entries on an empty table — rows only, no binaries; see Storage rules.
+
+  Two things about `is_public` are there for `ddl-auto=update` on a database that already has
+  rows, and both look redundant on a fresh one. The column carries an explicit
+  `columnDefinition = "boolean not null default false"` because Postgres refuses a plain
+  `add column ... not null` when there's existing data to fill. And `CatalogSeeder` marks every
+  owner-less row public on a non-empty table, because the new column defaults to false and an
+  owner-less private row belongs to nobody and so shows up for nobody — the 14 seeded pieces
+  would silently vanish from every account's rail. Both are idempotent.
+- `owner` is **eager on `CatalogItemEntity` and lazy on `RoomEntity`**, which is not an
+  oversight: every catalog read serialises the owner's display name, so `findVisibleTo`
+  join-fetches it and the whole rail is still one query. A room's owner is only ever compared
+  inside a transaction and never serialised.
 
 `RoomStatus` is `PENDING → UPLOADING → GENERATING → READY | FAILED`, but
 `RoomStatus.wireValue()` collapses that to the three strings the UI switches on:
@@ -173,10 +228,16 @@ Note both are over the 20MB upload cap as-is and need decimating first.
 
 ## API surface
 
+Every path below except `/api/auth/register` and `/api/auth/login` needs the `X-User-Id`
+header and answers 401 without it.
+
 | Method | Path | Purpose |
 | --- | --- | --- |
+| `POST` | `/api/auth/register` | `{username, password, display_name?}` → the account; signs in |
+| `POST` | `/api/auth/login` | `{username, password}` → the account |
+| `GET` | `/api/auth/me` | confirms a stored session still resolves |
 | `POST` | `/api/rooms` | multipart `video` + `name`; returns immediately, status `processing` |
-| `GET` | `/api/rooms` | project grid |
+| `GET` | `/api/rooms` | project grid — the caller's rooms only |
 | `GET` | `/api/rooms/{id}` | status, asset URLs, ground-plane offset, **and** the saved layout |
 | `PATCH` | `/api/rooms/{id}` | rename |
 | `DELETE` | `/api/rooms/{id}` | delete room (cascades to its models) |
@@ -184,9 +245,9 @@ Note both are over the 20MB upload cap as-is and need decimating first.
 | `DELETE` | `/api/rooms/{id}/models` | clear the layout ("reset room") |
 | `PATCH` | `/api/models/{id}` | update transform — partial, nulls mean "leave alone" |
 | `DELETE` | `/api/models/{id}` | remove one placed model |
-| `GET` | `/api/catalog` | the furniture catalog, grouped-order by category |
+| `GET` | `/api/catalog` | everything public plus the caller's own private uploads, grouped-order by category; each item carries `mine` and `is_public` |
 | `GET` | `/api/catalog/categories` | the fixed category list |
-| `POST` | `/api/catalog` | multipart `name`/`category`/`width`/`depth`/`height` + optional `model` and `thumbnail` files |
+| `POST` | `/api/catalog` | multipart `name`/`category`/`width`/`depth`/`height`/`is_public` + optional `model` and `thumbnail` files |
 | `POST` | `/api/catalog/estimate-dimensions` | multipart `name` + optional `category`/`thumbnail`; AI guess at real-world size, saves nothing |
 | `PATCH` | `/api/catalog/{id}` | multipart, partial — omitted fields and omitted files both mean "leave alone" |
 | `DELETE` | `/api/catalog/{id}` | remove the entry and its MinIO objects |
@@ -266,11 +327,28 @@ export handler at all, so re-adding the button means writing one first.
 
 ## Frontend notes
 
-- `src/api/rooms.js` and `src/api/catalog.js` are the only places that talk to the backend.
-  `createRoom` and the catalog writes use XHR rather than fetch purely for upload progress —
-  a bare spinner on a 400MB upload reads as a hang.
-- Nothing is in localStorage. `src/lib/store.js` held the catalog and is **gone**; rooms,
-  models and the catalog are all server-side. Don't put any of it back there.
+- `src/api/rooms.js`, `src/api/catalog.js` and `src/api/auth.js` are the only places that talk
+  to the backend. `createRoom` and the catalog writes use XHR rather than fetch purely for
+  upload progress — a bare spinner on a 400MB upload reads as a hang. The XHR paths have to set
+  the auth header themselves; `authHeaders()` is spread into both.
+- **The signed-in account is the only thing in localStorage**, under `roomcast.session`, and
+  `src/api/session.js` is the only module that touches it. Rooms, models and the catalog stay
+  server-side — `src/lib/store.js` held the catalog and is **gone**. Don't put any of that
+  back. The session is the one exception because it has nowhere else to live: the backend's
+  notion of who is asking *is* the header, so the browser has to remember what to send.
+- A 401 from any api module calls `handleUnauthorized()`, which clears the session and fires
+  a `roomcast:signed-out` event. The api modules aren't React and can't route anywhere;
+  `AuthProvider` listens, and `RequireAuth` does the redirecting. One place decides where a
+  dead session lands.
+- **Routing is two tiers.** `/` and `/login` are public; everything else sits behind
+  `RequireAuth`. The project grid moved from `/` to **`/rooms`** so the front door could be a
+  landing page — `LandingOrRooms` renders the pitch signed out and redirects to `/rooms`
+  signed in, and both it and `RequireAuth` wait out `checking` rather than rendering, so a
+  hard reload doesn't flash the login screen at someone who is already signed in. Any new
+  client route also needs adding to `SpaController`, or a hard reload on it 404s.
+- `Layout` is signed-in chrome only, rendered inside `RequireAuth`, so `user` is always set
+  there and the account chip needs no fallback. `Landing` carries its own header because its
+  destinations are different.
 - `Editor.jsx` owns the catalog fetch and passes the list into `CatalogPanel` as a prop,
   because adding an item needs the same list to resolve a catalog id into the name, category
   and model URL it snapshots onto the placed model.

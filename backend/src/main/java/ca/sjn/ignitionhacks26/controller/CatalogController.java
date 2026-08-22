@@ -1,8 +1,11 @@
 package ca.sjn.ignitionhacks26.controller;
 
+import ca.sjn.ignitionhacks26.config.CurrentUser;
 import ca.sjn.ignitionhacks26.dto.CatalogItemResponse;
 import ca.sjn.ignitionhacks26.dto.DimensionEstimate;
+import ca.sjn.ignitionhacks26.entity.UserEntity;
 import ca.sjn.ignitionhacks26.service.CatalogService;
+import ca.sjn.ignitionhacks26.service.CatalogService.AccessDeniedException;
 import ca.sjn.ignitionhacks26.service.CatalogService.CatalogItemInput;
 import ca.sjn.ignitionhacks26.service.DimensionEstimator;
 import org.springframework.http.HttpStatus;
@@ -31,9 +34,16 @@ public class CatalogController {
         this.dimensionEstimator = dimensionEstimator;
     }
 
+    /**
+     * Everything the caller can place: all public pieces plus their own private uploads.
+     * The mine/theirs split the admin page filters on rides along on each item as {@code mine},
+     * so there's no second endpoint and no second query for it.
+     */
     @GetMapping
-    public List<CatalogItemResponse> list() {
-        return catalogService.list().stream().map(CatalogItemResponse::from).toList();
+    public List<CatalogItemResponse> list(@CurrentUser UserEntity user) {
+        return catalogService.listVisibleTo(user).stream()
+                .map(item -> CatalogItemResponse.from(item, user))
+                .toList();
     }
 
     @GetMapping("/categories")
@@ -47,9 +57,13 @@ public class CatalogController {
      * and the ordinary create/update below is what saves them.
      *
      * <p>Multipart to match the rest of this controller, since the interesting input is a file.
+     *
+     * <p>The {@code user} parameter is unused on purpose — it's what makes the endpoint require
+     * a signed-in caller, so an open Gemini quota isn't sitting on the public internet.
      */
     @PostMapping(value = "/estimate-dimensions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public DimensionEstimate estimateDimensions(
+            @CurrentUser UserEntity user,
             @RequestParam("name") String name,
             @RequestParam(value = "category", required = false) String category,
             @RequestParam(value = "thumbnail", required = false) MultipartFile thumbnail) {
@@ -67,16 +81,19 @@ public class CatalogController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public CatalogItemResponse create(
+            @CurrentUser UserEntity user,
             @RequestParam("name") String name,
             @RequestParam("category") String category,
             @RequestParam(value = "width", required = false) Integer width,
             @RequestParam(value = "depth", required = false) Integer depth,
             @RequestParam(value = "height", required = false) Integer height,
+            @RequestParam(value = "is_public", required = false) Boolean isPublic,
             @RequestParam(value = "model", required = false) MultipartFile model,
             @RequestParam(value = "thumbnail", required = false) MultipartFile thumbnail) {
         try {
-            return CatalogItemResponse.from(catalogService.create(
-                    new CatalogItemInput(name, category, width, depth, height), model, thumbnail));
+            return CatalogItemResponse.from(catalogService.create(user,
+                    new CatalogItemInput(name, category, width, depth, height, isPublic),
+                    model, thumbnail), user);
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         } catch (IllegalStateException e) {
@@ -88,21 +105,26 @@ public class CatalogController {
     /** Partial: omitted fields and omitted files both mean "leave alone". */
     @PatchMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CatalogItemResponse update(
+            @CurrentUser UserEntity user,
             @PathVariable UUID id,
             @RequestParam(value = "name", required = false) String name,
             @RequestParam(value = "category", required = false) String category,
             @RequestParam(value = "width", required = false) Integer width,
             @RequestParam(value = "depth", required = false) Integer depth,
             @RequestParam(value = "height", required = false) Integer height,
+            @RequestParam(value = "is_public", required = false) Boolean isPublic,
             @RequestParam(value = "model", required = false) MultipartFile model,
             @RequestParam(value = "thumbnail", required = false) MultipartFile thumbnail) {
         try {
-            return catalogService.update(id, new CatalogItemInput(name, category, width, depth, height),
+            return catalogService.update(user, id,
+                            new CatalogItemInput(name, category, width, depth, height, isPublic),
                             model, thumbnail)
-                    .map(CatalogItemResponse::from)
+                    .map(item -> CatalogItemResponse.from(item, user))
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No such catalog item"));
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (AccessDeniedException e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
         } catch (IllegalStateException e) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage());
         }
@@ -110,9 +132,13 @@ public class CatalogController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable UUID id) {
-        if (!catalogService.delete(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such catalog item");
+    public void delete(@CurrentUser UserEntity user, @PathVariable UUID id) {
+        try {
+            if (!catalogService.delete(user, id)) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such catalog item");
+            }
+        } catch (AccessDeniedException e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
         }
     }
 }

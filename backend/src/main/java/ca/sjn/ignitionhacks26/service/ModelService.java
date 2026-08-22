@@ -3,6 +3,7 @@ package ca.sjn.ignitionhacks26.service;
 import ca.sjn.ignitionhacks26.dto.ModelRequest;
 import ca.sjn.ignitionhacks26.entity.ModelEntity;
 import ca.sjn.ignitionhacks26.entity.RoomEntity;
+import ca.sjn.ignitionhacks26.entity.UserEntity;
 import ca.sjn.ignitionhacks26.repository.ModelRepository;
 import ca.sjn.ignitionhacks26.repository.RoomRepository;
 import org.springframework.stereotype.Service;
@@ -55,8 +56,8 @@ public class ModelService {
      * why every transform field on the request is boxed.
      */
     @Transactional
-    public Optional<ModelEntity> update(UUID modelId, ModelRequest request) {
-        return modelRepository.findById(modelId).map(model -> {
+    public Optional<ModelEntity> update(UserEntity user, UUID modelId, ModelRequest request) {
+        return findOwned(user, modelId).map(model -> {
             if (request.name() != null && !request.name().isBlank()) {
                 model.setName(request.name());
             }
@@ -66,12 +67,23 @@ public class ModelService {
     }
 
     @Transactional
-    public boolean delete(UUID modelId) {
-        if (!modelRepository.existsById(modelId)) {
-            return false;
-        }
-        modelRepository.deleteById(modelId);
-        return true;
+    public boolean delete(UserEntity user, UUID modelId) {
+        return findOwned(user, modelId).map(model -> {
+            modelRepository.delete(model);
+            return true;
+        }).orElse(false);
+    }
+
+    /**
+     * A placed model has no owner of its own — it inherits the room's, which is the only
+     * ownership that could be meaningful for something that only exists inside one room.
+     */
+    private Optional<ModelEntity> findOwned(UserEntity user, UUID modelId) {
+        return modelRepository.findById(modelId).filter(model -> {
+            RoomEntity room = model.getRoom();
+            return room != null && room.getOwner() != null
+                    && room.getOwner().getId().equals(user.getId());
+        });
     }
 
     /** Clears a room's layout in one call — backs the editor's "reset room" button. */

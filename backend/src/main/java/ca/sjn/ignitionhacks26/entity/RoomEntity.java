@@ -36,6 +36,22 @@ public class RoomEntity {
     @Column(nullable = false)
     private String name;
 
+    /**
+     * Who scanned it. A room is only ever listed to, opened by, renamed by or deleted by its
+     * owner — see {@code RoomService}.
+     *
+     * <p>Nullable because {@code ddl-auto=update} adds the column to a table that already has
+     * rows in it, and an owner can't be invented for a room that predates accounts. Those
+     * legacy rooms belong to nobody and are therefore visible to nobody; they are still in the
+     * database if one is ever needed back.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @JsonIgnore
+    private UserEntity owner;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private RoomStatus status = RoomStatus.PENDING;

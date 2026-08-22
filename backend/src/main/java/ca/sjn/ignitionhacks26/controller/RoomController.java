@@ -1,9 +1,11 @@
 package ca.sjn.ignitionhacks26.controller;
 
+import ca.sjn.ignitionhacks26.config.CurrentUser;
 import ca.sjn.ignitionhacks26.dto.ModelRequest;
 import ca.sjn.ignitionhacks26.dto.ModelResponse;
 import ca.sjn.ignitionhacks26.dto.RenameRoomRequest;
 import ca.sjn.ignitionhacks26.dto.RoomResponse;
+import ca.sjn.ignitionhacks26.entity.UserEntity;
 import ca.sjn.ignitionhacks26.service.ModelService;
 import ca.sjn.ignitionhacks26.service.RoomService;
 import org.springframework.http.HttpStatus;
@@ -17,6 +19,10 @@ import java.util.UUID;
 
 /**
  * Backs src/api/rooms.js. A room is one scanned space; the models under it are its layout.
+ *
+ * <p>Every endpoint here is scoped to the signed-in account: a room is listed to, opened by,
+ * renamed by and deleted by its owner and nobody else. Someone else's room id is a 404, not a
+ * 403 — see {@code RoomService.getRoom}.
  */
 @RestController
 @RequestMapping("/api/rooms")
@@ -36,32 +42,34 @@ public class RoomController {
      */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public RoomResponse create(@RequestParam(value = "name", required = false) String name,
+    public RoomResponse create(@CurrentUser UserEntity user,
+                               @RequestParam(value = "name", required = false) String name,
                                @RequestParam("video") MultipartFile video) {
         try {
-            return RoomResponse.from(roomService.createRoom(name, video));
+            return RoomResponse.from(roomService.createRoom(user, name, video));
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }
     }
 
     @GetMapping
-    public List<RoomResponse> list() {
-        return roomService.listRooms().stream().map(RoomResponse::from).toList();
+    public List<RoomResponse> list(@CurrentUser UserEntity user) {
+        return roomService.listRooms(user).stream().map(RoomResponse::from).toList();
     }
 
     /** The editor's single read: room metadata, mesh URLs, and the saved layout. */
     @GetMapping("/{roomId}")
-    public RoomResponse get(@PathVariable UUID roomId) {
-        return roomService.getRoom(roomId)
+    public RoomResponse get(@CurrentUser UserEntity user, @PathVariable UUID roomId) {
+        return roomService.getRoom(user, roomId)
                 .map(room -> RoomResponse.from(room, modelService.listForRoom(roomId)))
                 .orElseThrow(() -> notFound("room"));
     }
 
     @PatchMapping("/{roomId}")
-    public RoomResponse rename(@PathVariable UUID roomId, @RequestBody RenameRoomRequest request) {
+    public RoomResponse rename(@CurrentUser UserEntity user, @PathVariable UUID roomId,
+                               @RequestBody RenameRoomRequest request) {
         try {
-            return roomService.rename(roomId, request.name())
+            return roomService.rename(user, roomId, request.name())
                     .map(RoomResponse::from)
                     .orElseThrow(() -> notFound("room"));
         } catch (IllegalArgumentException e) {
@@ -71,20 +79,23 @@ public class RoomController {
 
     @DeleteMapping("/{roomId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable UUID roomId) {
-        if (!roomService.deleteRoom(roomId)) {
+    public void delete(@CurrentUser UserEntity user, @PathVariable UUID roomId) {
+        if (!roomService.deleteRoom(user, roomId)) {
             throw notFound("room");
         }
     }
 
     @GetMapping("/{roomId}/models")
-    public List<ModelResponse> listModels(@PathVariable UUID roomId) {
+    public List<ModelResponse> listModels(@CurrentUser UserEntity user, @PathVariable UUID roomId) {
+        requireOwnRoom(user, roomId);
         return modelService.listForRoom(roomId).stream().map(ModelResponse::from).toList();
     }
 
     @PostMapping("/{roomId}/models")
     @ResponseStatus(HttpStatus.CREATED)
-    public ModelResponse addModel(@PathVariable UUID roomId, @RequestBody ModelRequest request) {
+    public ModelResponse addModel(@CurrentUser UserEntity user, @PathVariable UUID roomId,
+                                  @RequestBody ModelRequest request) {
+        requireOwnRoom(user, roomId);
         try {
             return modelService.addToRoom(roomId, request)
                     .map(ModelResponse::from)
@@ -97,11 +108,16 @@ public class RoomController {
     /** Clears the whole layout — the editor's "reset room". */
     @DeleteMapping("/{roomId}/models")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void clearModels(@PathVariable UUID roomId) {
-        if (roomService.getRoom(roomId).isEmpty()) {
+    public void clearModels(@CurrentUser UserEntity user, @PathVariable UUID roomId) {
+        requireOwnRoom(user, roomId);
+        modelService.deleteAllInRoom(roomId);
+    }
+
+    /** The layout endpoints inherit the room's ownership — there is no separate rule for them. */
+    private void requireOwnRoom(UserEntity user, UUID roomId) {
+        if (roomService.getRoom(user, roomId).isEmpty()) {
             throw notFound("room");
         }
-        modelService.deleteAllInRoom(roomId);
     }
 
     private static ResponseStatusException notFound(String what) {

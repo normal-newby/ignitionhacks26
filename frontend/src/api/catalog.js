@@ -7,6 +7,7 @@
  */
 
 import { errorMessageFrom } from './errors';
+import { authHeaders, handleUnauthorized } from './session';
 
 const BASE = '/api/catalog';
 
@@ -14,12 +15,18 @@ const BASE = '/api/catalog';
 export const CATEGORIES = ['Seating', 'Tables', 'Lighting', 'Storage', 'Plants', 'Decor'];
 
 async function readError(res) {
+    if (res.status === 401) handleUnauthorized();
     const body = await res.text().catch(() => '');
     return new Error(errorMessageFrom(body, res.status));
 }
 
+/**
+ * Everything the signed-in user can place: all public pieces plus their own private uploads.
+ * Each item carries `mine` and `is_public`, which is what the admin page's owner filter and
+ * its edit/delete buttons key off — one list, no second request for "my items".
+ */
 export async function listCatalogItems() {
-    const res = await fetch(BASE);
+    const res = await fetch(BASE, { headers: authHeaders() });
     if (!res.ok) throw await readError(res);
     return res.json();
 }
@@ -29,7 +36,7 @@ export async function listCatalogItems() {
  * entirely, which is how the PATCH stays partial — an absent field means "leave alone",
  * not "clear".
  */
-function toForm({ name, category, default_dimensions, model, thumbnail }) {
+function toForm({ name, category, default_dimensions, is_public, model, thumbnail }) {
     const form = new FormData();
     if (name !== undefined) form.append('name', name);
     if (category !== undefined) form.append('category', category);
@@ -38,6 +45,7 @@ function toForm({ name, category, default_dimensions, model, thumbnail }) {
         form.append('depth', default_dimensions.depth);
         form.append('height', default_dimensions.height);
     }
+    if (is_public !== undefined) form.append('is_public', is_public);
     if (model) form.append('model', model, model.name);
     if (thumbnail) form.append('thumbnail', thumbnail, thumbnail.name);
     return form;
@@ -53,6 +61,7 @@ function send(method, path, form, onProgress) {
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open(method, path);
+        Object.entries(authHeaders()).forEach(([key, value]) => xhr.setRequestHeader(key, value));
 
         if (onProgress) {
             xhr.upload.onprogress = (e) => {
@@ -68,6 +77,7 @@ function send(method, path, form, onProgress) {
                     reject(new Error('The server returned a response we could not read.'));
                 }
             } else {
+                if (xhr.status === 401) handleUnauthorized();
                 reject(new Error(errorMessageFrom(xhr.responseText, xhr.status)));
             }
         };
@@ -101,12 +111,16 @@ export async function estimateDimensions({ name, category, thumbnail }) {
     if (category) form.append('category', category);
     if (thumbnail) form.append('thumbnail', thumbnail, thumbnail.name);
 
-    const res = await fetch(`${BASE}/estimate-dimensions`, { method: 'POST', body: form });
+    const res = await fetch(`${BASE}/estimate-dimensions`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: form,
+    });
     if (!res.ok) throw await readError(res);
     return res.json();
 }
 
 export async function deleteCatalogItem(id) {
-    const res = await fetch(`${BASE}/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${BASE}/${id}`, { method: 'DELETE', headers: authHeaders() });
     if (!res.ok) throw await readError(res);
 }

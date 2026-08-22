@@ -82,6 +82,7 @@ public class RoomGenerationService {
 
     /** Marble shows display_name in its own dashboard, so give it something recognisable. */
     private String roomNameFor(UUID roomId) {
-        return roomService.getRoom(roomId).map(room -> room.getName()).orElse("Roomcast scan");
+        // Unscoped: this runs off-request, so there's no signed-in user to check against.
+        return roomService.findUnscoped(roomId).map(room -> room.getName()).orElse("Roomcast scan");
     }
 }

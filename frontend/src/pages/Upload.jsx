@@ -71,7 +71,7 @@ export default function Upload() {
       {/* Minimal top bar */}
       <div className="px-6 py-5">
         <Link
-          to="/"
+          to="/rooms"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors font-body"
         >
           <ArrowLeft className="w-4 h-4" />

@@ -18,7 +18,7 @@ export default function EditorTopBar({
       {/* Left: back + editable name */}
       <div className="flex items-center gap-2 min-w-0">
         <Link
-          to="/"
+          to="/rooms"
           className="p-1 border-2 border-[#1e40af] hover:bg-[#5a6c80] hover:text-white transition-colors flex-shrink-0 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
           title="Back to projects"
         >

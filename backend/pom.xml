@@ -56,6 +56,17 @@
             <version>8.5.17</version>
         </dependency>
 
+        <!--
+          BCrypt for the account passwords, and nothing else. Deliberately not
+          spring-boot-starter-security: that would install a filter chain over every endpoint,
+          which is a lot of machinery for an app whose session is an X-User-Id header. This
+          artifact carries no autoconfiguration at all.
+        -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
