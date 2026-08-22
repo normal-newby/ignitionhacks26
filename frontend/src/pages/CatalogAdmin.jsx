@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Trash2, Pencil, Check, X, Loader2, Box, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Loader2, Box, AlertCircle, Sparkles } from 'lucide-react';
 import {
   CATEGORIES,
   listCatalogItems,
   createCatalogItem,
   updateCatalogItem,
   deleteCatalogItem,
+  estimateDimensions,
 } from '@/api/catalog';
 import Thumbnail from '@/components/Thumbnail';
 
@@ -40,6 +41,10 @@ export default function CatalogAdmin() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
+  const [estimating, setEstimating] = useState(false);
+  // What the model said it assumed. Worth showing: "assumed a two-seater" is the difference
+  // between trusting the numbers and checking them.
+  const [estimateNote, setEstimateNote] = useState('');
 
   // Cleared explicitly on cancel/save: a File in state doesn't reset the input's own value,
   // so re-picking the same file after a cancel would otherwise fire no change event.
@@ -64,12 +69,14 @@ export default function CatalogAdmin() {
 
   const startCreate = () => {
     setError('');
+    setEstimateNote('');
     setEditingId('new');
     setDraft({ ...EMPTY_ITEM, default_dimensions: { ...EMPTY_ITEM.default_dimensions } });
   };
 
   const startEdit = (item) => {
     setError('');
+    setEstimateNote('');
     setEditingId(item.id);
     setDraft({
       name: item.name,
@@ -84,8 +91,43 @@ export default function CatalogAdmin() {
     setModelFile(null);
     setThumbnailFile(null);
     setProgress(0);
+    setEstimateNote('');
     if (modelInputRef.current) modelInputRef.current.value = '';
     if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
+  };
+
+  /**
+   * Fills the dimension fields from an AI guess. It writes into the draft rather than saving,
+   * so a wrong number is one edit away from right and nothing reaches the catalog unreviewed.
+   *
+   * Only a freshly picked thumbnail goes along as a reference image — an already-attached one
+   * lives in MinIO, and re-fetching it here to re-upload it would be a round trip for a hint.
+   */
+  const estimate = async () => {
+    if (!draft.name.trim()) {
+      setError('Name the item first — that is what the estimate is based on.');
+      return;
+    }
+    if (tooBig(thumbnailFile, MAX_THUMBNAIL_MB)) {
+      setError(`That image is over the ${MAX_THUMBNAIL_MB}MB limit.`);
+      return;
+    }
+
+    setEstimating(true);
+    setError('');
+    try {
+      const { width, depth, height, note } = await estimateDimensions({
+        name: draft.name,
+        category: draft.category,
+        thumbnail: thumbnailFile,
+      });
+      setDraft((current) => ({ ...current, default_dimensions: { width, depth, height } }));
+      setEstimateNote(note || '');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setEstimating(false);
+    }
   };
 
   const save = async () => {
@@ -216,9 +258,25 @@ export default function CatalogAdmin() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-body font-medium mb-1">
-                Default dimensions (cm)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-body font-medium">
+                  Default dimensions (cm)
+                </label>
+                <button
+                  type="button"
+                  onClick={estimate}
+                  disabled={busy || estimating}
+                  title="Guess the real-world size from the name, category and thumbnail"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border font-body text-xs font-medium hover:bg-muted transition-colors disabled:opacity-50"
+                >
+                  {estimating ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5" />
+                  )}
+                  {estimating ? 'Estimating…' : 'Estimate with AI'}
+                </button>
+              </div>
               <div className="grid grid-cols-3 gap-3">
                 {['width', 'depth', 'height'].map((dim) => (
                   <div key={dim}>
@@ -240,6 +298,12 @@ export default function CatalogAdmin() {
                   </div>
                 ))}
               </div>
+              {estimateNote && (
+                <p className="flex items-start gap-1.5 font-mono text-[10px] text-muted-foreground mt-1.5">
+                  <Sparkles className="w-3 h-3 flex-shrink-0 mt-px" />
+                  <span>Estimated — {estimateNote} Check the numbers before saving.</span>
+                </p>
+              )}
             </div>
           </div>
 

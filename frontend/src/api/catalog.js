@@ -87,6 +87,25 @@ export function updateCatalogItem(id, patch, onProgress) {
     return send('PATCH', `${BASE}/${id}`, toForm(patch), onProgress);
 }
 
+/**
+ * Asks the server to guess an item's real-world size from its name, category and thumbnail.
+ * Returns `{ width, depth, height, note }` in centimetres — nothing is saved, the caller drops
+ * the numbers into the form and the user still presses Save.
+ *
+ * Plain fetch rather than the XHR path above: the only file involved is a thumbnail, and
+ * there's no progress worth drawing for it.
+ */
+export async function estimateDimensions({ name, category, thumbnail }) {
+    const form = new FormData();
+    form.append('name', name);
+    if (category) form.append('category', category);
+    if (thumbnail) form.append('thumbnail', thumbnail, thumbnail.name);
+
+    const res = await fetch(`${BASE}/estimate-dimensions`, { method: 'POST', body: form });
+    if (!res.ok) throw await readError(res);
+    return res.json();
+}
+
 export async function deleteCatalogItem(id) {
     const res = await fetch(`${BASE}/${id}`, { method: 'DELETE' });
     if (!res.ok) throw await readError(res);

@@ -1,8 +1,10 @@
 package ca.sjn.ignitionhacks26.controller;
 
 import ca.sjn.ignitionhacks26.dto.CatalogItemResponse;
+import ca.sjn.ignitionhacks26.dto.DimensionEstimate;
 import ca.sjn.ignitionhacks26.service.CatalogService;
 import ca.sjn.ignitionhacks26.service.CatalogService.CatalogItemInput;
+import ca.sjn.ignitionhacks26.service.DimensionEstimator;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -22,9 +24,11 @@ import java.util.UUID;
 public class CatalogController {
 
     private final CatalogService catalogService;
+    private final DimensionEstimator dimensionEstimator;
 
-    public CatalogController(CatalogService catalogService) {
+    public CatalogController(CatalogService catalogService, DimensionEstimator dimensionEstimator) {
         this.catalogService = catalogService;
+        this.dimensionEstimator = dimensionEstimator;
     }
 
     @GetMapping
@@ -35,6 +39,29 @@ public class CatalogController {
     @GetMapping("/categories")
     public List<String> categories() {
         return CatalogService.CATEGORIES;
+    }
+
+    /**
+     * Guesses the item's real-world size from its name, category and — if the admin has picked
+     * one — its thumbnail. Reads nothing and writes nothing: the numbers go back to the form,
+     * and the ordinary create/update below is what saves them.
+     *
+     * <p>Multipart to match the rest of this controller, since the interesting input is a file.
+     */
+    @PostMapping(value = "/estimate-dimensions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public DimensionEstimate estimateDimensions(
+            @RequestParam("name") String name,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "thumbnail", required = false) MultipartFile thumbnail) {
+        try {
+            return dimensionEstimator.estimate(name, category, thumbnail);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (IllegalStateException e) {
+            // Gemini unconfigured, unreachable, or unhelpful — the request itself was fine, and
+            // the admin can still type the numbers in.
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage());
+        }
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

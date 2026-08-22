@@ -27,7 +27,9 @@ Explicitly **out of scope — do not attempt**:
   structure; decomposing it is an open research problem, not something buildable here. All
   furniture comes from our own catalog and sits *on top of* the scanned shell.
 - Room-type / condition labelling via a vision LLM. This was an earlier direction and the
-  Gemini integration behind it has been **removed** — don't reintroduce it.
+  Gemini integration behind it has been **removed** — don't reintroduce it. Gemini *is* back
+  for one narrow job, catalog dimension estimates (see below), and that's the whole of it:
+  nothing infers anything about a scanned room.
 - Property-listing / tour search (address lookup, tags, "similar homes"). Also a previous
   direction, also removed.
 - Collision detection between placed items, multi-user auth, real undo/redo history beyond
@@ -185,10 +187,43 @@ Note both are over the 20MB upload cap as-is and need decimating first.
 | `GET` | `/api/catalog` | the furniture catalog, grouped-order by category |
 | `GET` | `/api/catalog/categories` | the fixed category list |
 | `POST` | `/api/catalog` | multipart `name`/`category`/`width`/`depth`/`height` + optional `model` and `thumbnail` files |
+| `POST` | `/api/catalog/estimate-dimensions` | multipart `name` + optional `category`/`thumbnail`; AI guess at real-world size, saves nothing |
 | `PATCH` | `/api/catalog/{id}` | multipart, partial — omitted fields and omitted files both mean "leave alone" |
 | `DELETE` | `/api/catalog/{id}` | remove the entry and its MinIO objects |
 
 All request/response bodies are snake_case, matching what the React pages read.
+
+## Dimension estimates (Gemini)
+
+`DimensionEstimator` guesses a catalog item's real-world size from its name, its category and —
+when the admin has just picked one — its thumbnail, sent inline as base64. It exists because
+`PlacedModel` scales every GLB so its height matches `height_cm`: the catalog dimensions are
+what size a model on screen, and an entry left at the default 50×50×50 renders a 50cm sofa.
+
+The estimate is **never persisted from the estimator**. It comes back to the catalog form, the
+admin sees it alongside the model's one-line note about what it assumed, and the ordinary
+create/update write is what saves it. Values are rounded and clamped to 1–10000cm so an
+estimate is always something `CatalogService` will accept.
+
+Verified against the live API, not assumed:
+
+- **`gemini-2.5-flash` is gone** — the API answers "no longer available to new users" and
+  names `gemini-3.6-flash` as the replacement. That's the default in `GeminiProperties`.
+- **Thinking is configured as `thinkingConfig: {"thinkingLevel": "low"}`.** The 2.5-era
+  `{"thinkingBudget": 0}` is a flat 400 on 3.x, and `thinkingLevel` beside `thinkingConfig`
+  rather than inside it is a second 400. Low, not off: off isn't offered, and the admin is
+  watching a spinner.
+- The reply is pinned to a `responseSchema` with `responseMimeType: application/json`. Asking
+  for JSON in the prompt alone gets a code fence or units inside the numbers often enough to
+  matter.
+- Auth is an `x-goog-api-key` header rather than `?key=`, which would put the secret in every
+  access log between here and Google.
+- Inline images must be PNG, JPEG or WebP. AVIF is accepted by the catalog's thumbnail upload
+  but rejected here with a message saying so.
+
+Only a freshly picked thumbnail is sent as a reference. One already attached to the row lives
+in MinIO, and round-tripping it through the browser to re-upload it is a lot of bytes for a
+hint.
 
 ## Frontend notes
 
@@ -322,9 +357,10 @@ same names as real env vars.
 - `WORLD_LABS_API_KEY` — and `WORLD_LABS_API_KEY_TEST` alongside it for test generations
 - `MINIO_ENDPOINT`, `MINIO_PUBLIC_URL`, `MINIO_BUCKET` (defaults to `furniture`),
   `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` — see Storage rules for which URL goes where
+- `GEMINI_API_KEY` — catalog dimension estimates only
 
-The app boots without a Marble key or MinIO; the corresponding uploads just fail fast with a
-clear message instead.
+The app boots without a Marble key, a Gemini key or MinIO; the corresponding uploads just fail
+fast with a clear message instead.
 
 ## Known risks
 
