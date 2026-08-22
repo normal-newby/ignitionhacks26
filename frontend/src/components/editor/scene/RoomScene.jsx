@@ -1,11 +1,7 @@
 import { Suspense, Component, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
-import { AdaptiveDpr, TransformControls, useGLTF, useProgress } from '@react-three/drei';
+import { AdaptiveDpr, OrbitControls, TransformControls, useGLTF, useProgress } from '@react-three/drei';
 import { Plane, Raycaster, Vector2, Vector3 } from 'three';
-// Bare-ish specifier into three's own examples, which import 'three' the same way the rest of
-// the app does — so Vite still dedupes to one three instance. See the note in CLAUDE.md about
-// what a second copy does to Spark.
-import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import RoomShell from './RoomShell';
 import RoomSplat from './RoomSplat';
 import PlacedModel from './PlacedModel';
@@ -396,7 +392,9 @@ export default function RoomScene({
                     />
                 )}
 
-                <UnifiedControls />
+                {navMode === 'walk'
+                    ? <WalkControls />
+                    : <OrbitControls makeDefault regress enableDamping dampingFactor={0.12} target={[0, 0.8, 0]} maxPolarAngle={Math.PI / 2 + 0.2} />}
             </Canvas>
 
             {/* The controls hint lives in Viewport, not here: at the bottom centre it sat on
