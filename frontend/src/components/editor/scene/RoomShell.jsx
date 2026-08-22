@@ -60,9 +60,6 @@ export default function RoomShell({ url, groundPlaneOffset = 0, metricScaleFacto
         object.material = scanMaterial();
       }
     });
-    // How RoomScene's GLB export finds the scan in the scene graph. It has to be found rather
-    // than passed down, because the export is driven from the top bar, outside the Canvas.
-    clone.userData.roomShell = true;
     return clone;
   }, [scene]);
 

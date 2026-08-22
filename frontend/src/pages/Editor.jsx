@@ -76,6 +76,7 @@ export default function Editor() {
   const [placedItems, setPlacedItems] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [transformMode, setTransformMode] = useState('move');
+  const [navMode, setNavMode] = useState('orbit');
   // Photoreal by default — it's the whole point of scanning the room. The mesh is one click
   // away for anyone whose machine struggles with half a million splats.
   const [roomMode, setRoomMode] = useState('splat');
@@ -84,9 +85,6 @@ export default function Editor() {
   const [gridSnap, setGridSnap] = useState(false);
   const [projectName, setProjectName] = useState('');
   const [saveStatus, setSaveStatus] = useState('saved');
-  // Writing a GLB walks every vertex of the scan; on a full room that's a beat or two of
-  // blocked main thread, which needs to look like something other than a dead button.
-  const [exporting, setExporting] = useState(false);
   const [catalog, setCatalog] = useState([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
 
@@ -110,9 +108,8 @@ export default function Editor() {
    */
   const spawnCountRef = useRef(0);
   /**
-   * The viewport's two answers to questions only the renderer can answer: where the floor is
-   * in front of the camera, and what the camera currently sees as a PNG. Null until RoomScene
-   * has mounted, so both callers below fall back rather than assume.
+   * The one question only the renderer can answer: where the floor is in front of the camera.
+   * Null until RoomScene has mounted, so the caller falls back rather than assumes.
    */
   const viewportApiRef = useRef(null);
 
@@ -247,7 +244,7 @@ export default function Editor() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [navMode]);
 
   /** Catalog lookup for the renderer, which sizes each model from its entry's dimensions. */
   const catalogById = useMemo(
@@ -372,48 +369,6 @@ export default function Editor() {
     [projectId, runSave]
   );
 
-  /**
-   * Saves the room and its layout to disk as a GLB.
-   *
-   * This used to copy a link to the clipboard, which looked identical whether it worked or
-   * not. A file in Downloads is the same idea with something to show for it — and a GLB, not
-   * a screenshot, because the layout is the work: it opens in Blender or any glTF viewer with
-   * the furniture still where it was put. The scan's photoreal splat can't be part of that;
-   * see RoomScene's exportScene for why.
-   *
-   * The anchor is the only way to name a downloaded file from the browser — `download` on a
-   * synthesised click. It has to be in the document for Firefox to honour the click, and the
-   * object URL has to outlive the click, or the download is cancelled before it starts.
-   */
-  const handleExport = useCallback(async () => {
-    if (exporting) return;
-    setExporting(true);
-
-    try {
-      const blob = await viewportApiRef.current?.exportScene();
-      if (!blob) {
-        console.error('The room had nothing to export yet');
-        return;
-      }
-
-      const slug =
-        projectName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'room';
-
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${slug}.glb`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (err) {
-      console.error('Export failed', err);
-    } finally {
-      setExporting(false);
-    }
-  }, [exporting, projectName]);
-
   /* ---------------- render ---------------- */
 
   if (loading) {
@@ -433,8 +388,6 @@ export default function Editor() {
         projectName={projectName}
         onRename={handleRename}
         saveStatus={saveStatus}
-        exporting={exporting}
-        onExport={handleExport}
       />
       <div className="flex-1 flex min-h-0">
         <CatalogPanel items={catalog} loading={catalogLoading} onAdd={handleAddItem} />
@@ -445,11 +398,13 @@ export default function Editor() {
           selectedId={selectedId}
           transformMode={transformMode}
           gridSnap={gridSnap}
+          navMode={navMode}
           roomMode={roomMode}
           splatQuality={splatQuality}
           canUndo={historyRef.current.length > 0}
           apiRef={viewportApiRef}
           onSetTransformMode={setTransformMode}
+          onSetNavMode={setNavMode}
           onSetRoomMode={setRoomMode}
           onSetSplatQuality={setSplatQuality}
           onToggleGridSnap={handleToggleGridSnap}

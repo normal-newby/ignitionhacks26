@@ -28,6 +28,48 @@ function tooBig(file, limitMb) {
 }
 
 /**
+ * A file picker whose clickable area is the button and nothing else.
+ *
+ * A bare `<input type="file">` is a block-level box, so `w-full` gave it a hit area spanning
+ * the whole form column: clicking the empty space to the right of "Choose File" — or past the
+ * filename — opened the picker. Tailwind's `file:` variants only style the button part of that
+ * box, they don't shrink it, so no amount of styling fixes it. The input has to stop being the
+ * thing you click.
+ *
+ * So it's driven from a `<label>` instead, which is inline-block and therefore exactly as wide
+ * as its own text. `sr-only` rather than `hidden` on the input, because `display:none` would
+ * take it out of the tab order; this way it stays keyboard-reachable and `peer-focus-visible`
+ * draws the ring on the label that the invisible input can't show itself.
+ */
+function FileField({ id, label, inputRef, accept, file, hint, onPick }) {
+  return (
+    <div>
+      <span className="block text-sm font-body font-medium mb-1">{label}</span>
+      <div className="flex items-center gap-3">
+        <input
+          id={id}
+          ref={inputRef}
+          type="file"
+          accept={accept}
+          onChange={(e) => onPick(e.target.files?.[0] ?? null)}
+          className="sr-only peer"
+        />
+        <label
+          htmlFor={id}
+          className="inline-flex items-center px-3 py-1.5 rounded-md bg-muted text-sm font-body font-medium cursor-pointer hover:bg-muted/70 transition-colors peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring"
+        >
+          Choose file
+        </label>
+        <span className="font-body text-sm text-muted-foreground truncate min-w-0">
+          {file ? file.name : 'No file chosen'}
+        </span>
+      </div>
+      <p className="font-mono text-[10px] text-muted-foreground mt-1">{hint}</p>
+    </div>
+  );
+}
+
+/**
  * Catalog admin. Items live in Postgres and their GLBs in MinIO, so an upload here is
  * visible to every browser — the old localStorage catalog only ever existed in one.
  */
@@ -226,36 +268,28 @@ export default function CatalogAdmin() {
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-body font-medium mb-1">Model (GLB)</label>
-              <input
-                ref={modelInputRef}
-                type="file"
-                accept={MODEL_ACCEPT}
-                onChange={(e) => setModelFile(e.target.files?.[0] ?? null)}
-                className="w-full text-sm font-body file:mr-3 file:px-3 file:py-1.5 file:rounded-md file:border-0 file:bg-muted file:text-sm file:font-medium file:cursor-pointer"
-              />
-              <p className="font-mono text-[10px] text-muted-foreground mt-1">
-                {editingItem?.model_asset_url
-                  ? `Attached — pick a file to replace it. Max ${MAX_MODEL_MB}MB.`
-                  : `.glb or .gltf, max ${MAX_MODEL_MB}MB.`}
-              </p>
-            </div>
-            <div>
-              <label className="block text-sm font-body font-medium mb-1">Thumbnail</label>
-              <input
-                ref={thumbnailInputRef}
-                type="file"
-                accept={THUMBNAIL_ACCEPT}
-                onChange={(e) => setThumbnailFile(e.target.files?.[0] ?? null)}
-                className="w-full text-sm font-body file:mr-3 file:px-3 file:py-1.5 file:rounded-md file:border-0 file:bg-muted file:text-sm file:font-medium file:cursor-pointer"
-              />
-              <p className="font-mono text-[10px] text-muted-foreground mt-1">
-                {editingItem?.thumbnail_url
-                  ? `Attached — pick a file to replace it. Max ${MAX_THUMBNAIL_MB}MB.`
-                  : `Optional. PNG, JPG, WebP or AVIF, max ${MAX_THUMBNAIL_MB}MB.`}
-              </p>
-            </div>
+            <FileField
+              id="catalog-model-file"
+              label="Model (GLB)"
+              inputRef={modelInputRef}
+              accept={MODEL_ACCEPT}
+              file={modelFile}
+              onPick={setModelFile}
+              hint={editingItem?.model_asset_url
+                ? `Attached — pick a file to replace it. Max ${MAX_MODEL_MB}MB.`
+                : `.glb or .gltf, max ${MAX_MODEL_MB}MB.`}
+            />
+            <FileField
+              id="catalog-thumbnail-file"
+              label="Thumbnail"
+              inputRef={thumbnailInputRef}
+              accept={THUMBNAIL_ACCEPT}
+              file={thumbnailFile}
+              onPick={setThumbnailFile}
+              hint={editingItem?.thumbnail_url
+                ? `Attached — pick a file to replace it. Max ${MAX_THUMBNAIL_MB}MB.`
+                : `Optional. PNG, JPG, WebP or AVIF, max ${MAX_THUMBNAIL_MB}MB.`}
+            />
 
             <div className="md:col-span-2">
               <div className="flex items-center justify-between mb-1">

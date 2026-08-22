@@ -5,7 +5,7 @@ import { Plane, Raycaster, Vector2, Vector3 } from 'three';
 import RoomShell from './RoomShell';
 import RoomSplat from './RoomSplat';
 import PlacedModel from './PlacedModel';
-import UnifiedControls, { EYE_HEIGHT } from './UnifiedControls';
+import WalkControls, { EYE_HEIGHT } from './WalkControls';
 
 // Marble's collider meshes are DRACO-compressed, so the room simply will not appear without a
 // decoder. drei defaults to pulling one from gstatic.com at load time; pointing it at our own
@@ -16,8 +16,7 @@ useGLTF.setDecoderPath('/draco/');
 /** RoomShell puts the scanned floor on y=0, so this is the floor for placement purposes. */
 const FLOOR = new Plane(new Vector3(0, 1, 0), 0);
 
-/** Where you're standing when the room opens: on the floor at the origin, facing -Z. */
-const START_POSITION = [0, EYE_HEIGHT, 0];
+const ORBIT_CAMERA = [3.2, 2.4, 3.6];
 
 const GIZMO_MODES = { move: 'translate', rotate: 'rotate', scale: 'scale' };
 
@@ -29,8 +28,8 @@ const ROTATE_SNAP = (15 * Math.PI) / 180;
 const PLACE_DISTANCE = 2;
 
 /**
- * Keeps a handle on the renderer so the code outside the Canvas — the drop handler, the
- * export — can reach it. r3f state is only reachable from inside the tree.
+ * Keeps a handle on the renderer so the drop handler outside the Canvas can turn a mouse
+ * position into a point on the floor. r3f state is only reachable from inside the tree.
  */
 function Bridge({ handle }) {
     const { camera, gl, scene } = useThree();
@@ -38,9 +37,22 @@ function Bridge({ handle }) {
     return null;
 }
 
-/* No CameraRig here — where you start standing is UnifiedControls' business, along with
-   everything else that moves the camera. START_POSITION above is only the Canvas's initial
-   prop, so the first frame isn't rendered from the origin. */
+/** Puts the camera somewhere sensible each time the navigation mode changes. */
+function CameraRig({ mode }) {
+    const { camera } = useThree();
+
+    useEffect(() => {
+        if (mode === 'walk') {
+            camera.position.set(0, EYE_HEIGHT, 0);
+            camera.lookAt(0, EYE_HEIGHT, -2);
+        } else {
+            camera.position.set(...ORBIT_CAMERA);
+            camera.lookAt(0, 0.8, 0);
+        }
+    }, [mode, camera]);
+
+    return null;
+}
 
 /**
  * The load progress readout.
@@ -87,8 +99,8 @@ class ModelBoundary extends Component {
  * The 3D editor viewport.
  *
  * Everything is in metres with the scanned floor at y=0 — see RoomShell for how Marble's
- * frame gets mapped onto that. There is one way to be in the room: standing in it, looking
- * around with a right-drag. See UnifiedControls for why that isn't OrbitControls.
+ * frame gets mapped onto that. Orbit mode is for arranging; walk mode drops you inside the
+ * room at eye height.
  */
 export default function RoomScene({
     room,
@@ -97,6 +109,7 @@ export default function RoomScene({
     selectedId,
     transformMode,
     gridSnap,
+    navMode,
     roomMode,
     splatQuality,
     apiRef,
@@ -121,10 +134,9 @@ export default function RoomScene({
         bumpRegistry((n) => n + 1);
     }, []);
 
-    // The gizmo is available the whole time now. It used to be orbit-only because a pointer
-    // lock made it unclickable; with the cursor free, left-drag on the gizmo and right-drag to
-    // look never contend for the same button.
-    const attached = registry.current.get(selectedId) ?? null;
+    // Only in orbit mode: a gizmo you can't click while the pointer is locked is just an
+    // obstruction, and it would swallow the walk-mode pointer events.
+    const attached = navMode === 'orbit' ? registry.current.get(selectedId) ?? null : null;
 
     /** Screen point -> floor point, for dropping a catalog card where the cursor is. */
     const floorPointAt = useCallback((clientX, clientY) => {
@@ -184,64 +196,12 @@ export default function RoomScene({
         );
     }, []);
 
-    /**
-     * The room and everything arranged in it, as a GLB.
-     *
-     * **The photoreal splat can't come along.** glTF has no Gaussian-splat primitive, and
-     * Marble's `.spz` is a separate asset with its own format; the only 3D geometry in this
-     * scene is the collider mesh and the catalog models on top of it. So the export is the
-     * scan's mesh plus the layout — the thing that opens in Blender, and the thing that
-     * actually carries the user's work.
-     *
-     * Only two kinds of root go in, named explicitly rather than handing over the whole scene:
-     * that leaves out the lights, the splat, Spark's renderer object and the gizmo without
-     * having to recognise any of them. The shell is forced visible for the export because it
-     * stops drawing whenever the splat covers it, and an invisible node is one `onlyVisible`
-     * skips.
-     */
-    const exportScene = useCallback(async () => {
-        if (!handle.current) return null;
-        const { scene } = handle.current;
-
-        const shells = [];
-        scene.traverse((object) => {
-            if (object.userData.roomShell) shells.push(object);
-        });
-
-        const roots = [...shells, ...registry.current.values()].filter(Boolean);
-        if (roots.length === 0) return null;
-
-        // Selection rings are editing furniture, not furniture.
-        const hidden = [];
-        roots.forEach((root) => root.traverse((object) => {
-            if (object.userData.hideOnExport && object.visible) {
-                object.visible = false;
-                hidden.push(object);
-            }
-        }));
-        const revealed = shells.filter((shell) => !shell.visible);
-        revealed.forEach((shell) => { shell.visible = true; });
-
-        try {
-            const buffer = await new Promise((resolve, reject) => {
-                new GLTFExporter().parse(roots, resolve, reject, {
-                    binary: true,
-                    onlyVisible: true,
-                });
-            });
-            return new Blob([buffer], { type: 'model/gltf-binary' });
-        } finally {
-            hidden.forEach((object) => { object.visible = true; });
-            revealed.forEach((shell) => { shell.visible = false; });
-        }
-    }, []);
-
-    // Handed up to the editor, which owns the export button and the catalog rail.
+    // Handed up to the editor, which owns the catalog rail.
     useEffect(() => {
         if (!apiRef) return undefined;
-        apiRef.current = { exportScene, placementPoint };
+        apiRef.current = { placementPoint };
         return () => { apiRef.current = null; };
-    }, [apiRef, exportScene, placementPoint]);
+    }, [apiRef, placementPoint]);
 
     /**
      * Reads the transform back off the gizmo. Scale is forced uniform: furniture stretched on
@@ -296,7 +256,7 @@ export default function RoomScene({
                 // far was 500 for a room that's 3m across. A 0.05..500 depth range spends
                 // almost all of its precision on empty space and leaves furniture standing on
                 // the floor fighting over the same depth values.
-                camera={{ position: START_POSITION, fov: 55, near: 0.05, far: 100 }}
+                camera={{ position: ORBIT_CAMERA, fov: 55, near: 0.05, far: 100 }}
                 // Capped at 1.5, not the display's full ratio. Splat rendering is fill-rate
                 // bound, so this is the single biggest dial in the scene: a 2x display renders
                 // four times the pixels of a 1x one for a room that is already soft-edged.
@@ -316,11 +276,10 @@ export default function RoomScene({
                 // more usual 0.5 because the dpr cap above already cut resolution once, and
                 // stacking both drops is more softness than the frames are worth.
                 performance={{ min: 0.75 }}
-                // Left button only. r3f raises a miss for `contextmenu` too, so without the
-                // guard every right-drag to look around would also drop the selection.
-                onPointerMissed={(e) => e.button === 0 && onSelectItem(null)}
+                onPointerMissed={() => navMode === 'orbit' && onSelectItem(null)}
             >
                 <Bridge handle={handle} />
+                <CameraRig mode={navMode} />
                 <AdaptiveDpr />
 
                 {/* Marble bakes lighting into the scan, so this is mostly here for the

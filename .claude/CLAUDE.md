@@ -273,41 +273,17 @@ Marble's frame gets mapped onto that, and why the mapping isn't the documented o
   conditionally. Catalog GLBs are measured and rescaled so their height matches the catalog
   entry's `height_cm` — **the catalog dimensions are what size a model on screen**, so an
   entry left at the default 50×50×50 renders a 50cm-tall sofa.
-- `UnifiedControls` — the camera, all of it. One mode: standing in the room. **Right-drag
-  looks**, WASD walks, Q/E drop and rise, shift hurries, the wheel dollies along the view.
-  Left stays free for picking furniture and dragging its gizmo. `WalkControls` and the
-  orbit/walk toggle it sat beside are both gone; this replaced them.
+- `WalkControls` — pointer-lock first person, WASD, shift to hurry. Deliberately
+  collisionless and pinned to 1.6m eye height. Paired with `OrbitControls` behind the toolbar's
+  orbit/walk toggle: orbit is for arranging, walk drops you inside the room.
 
-  **It drives the camera directly — no `OrbitControls`, and putting one back reintroduces a
-  real bug.** Right-drag was `MOUSE.PAN` on an OrbitControls pinned to `target=[0, 0.8, 0]`,
-  and it worked *sometimes*: OrbitControls scales a pan by the camera-to-target distance, and
-  WASD moves the camera without moving the target, so walking up to the middle of the room —
-  where the target sits — takes the pan distance to nearly zero and the drag does nothing.
-  Walk past it and left-drag orbits you around a point behind your head. A fixed orbit point
-  and free first-person movement can't both be true; the intermittency was that contradiction,
-  not a flaky handler.
-
-  **Pointer lock is transient — held only for the duration of a look-drag.** That's what stops
-  the cursor travelling across the screen while you turn, and it comes back exactly where it
-  was left. It is *not* the old always-on lock, which is what made the gizmo and drag-and-drop
-  unreachable from inside the room. Every lock failure path is survivable: without the lock the
-  look still works off `movementX`, so nothing throws or blocks. `unadjustedMovement: true`
-  turns off OS pointer acceleration; Chrome rejects the request if it can't honour it, hence
-  the plain retry, and Firefox/Safari ignore the option entirely.
-
-  Four smaller things that each fix a real failure:
-  - It listens on `mousemove`, not `pointermove` — mouse events under a pointer lock are what
-    the spec actually guarantees.
-  - `handleMouseMove` bails when `e.buttons` says the right button is no longer held. A mouse-up
-    over the browser's own chrome never reaches us, and without this the camera keeps turning
-    with nothing pressed.
-  - The WASD listener ignores keystrokes aimed at an input. Nothing else could hold focus under
-    the old always-on lock; the inspector's coordinate boxes can now.
-  - The Canvas's `onPointerMissed` checks `button === 0`. r3f raises a miss for `contextmenu`
-    too, so every look-drag would otherwise clear the selection.
-
-  With no `makeDefault` controls object in the tree, drei's TransformControls has nothing to
-  disable mid-gizmo-drag and the two never interact.
+  `UnifiedControls` sits unused beside it. It was a single-mode camera — right-drag to look,
+  WASD/QE to move — that replaced the pair for a while; the orbit/walk toggle was restored on
+  request. One thing it recorded is worth keeping if anyone revives it: **do not put right-drag
+  pan on an `OrbitControls` with a fixed `target` while WASD moves the camera.** OrbitControls
+  scales a pan by the camera-to-target distance, so walking up to the target takes the pan to
+  nearly zero and the drag silently does nothing — a fixed orbit point and free first-person
+  movement can't both be true.
 
 Two things that will silently break the room if disturbed:
 
@@ -383,9 +359,8 @@ Facts about the splat path, each measured against a real scan rather than assume
 
 Render resolution is the other dial, and the one that reliably buys frames on a fill-rate-bound
 splat: `performance={{ min: 0.75 }}` on the Canvas, `<AdaptiveDpr/>` inside it, and
-`UnifiedControls` calling `performance.regress()` while the camera moves together drop
-resolution during movement and restore it once the view settles. That `regress()` call used to
-be a prop on `OrbitControls`; with orbit gone, losing it would quietly cost the frames back.
+`regress` on `OrbitControls` together drop resolution while the camera moves and restore full
+resolution once it settles.
 
 Two React-side costs worth keeping down, because the gizmo commits a transform on **every mouse
 move** of a drag and each commit replaces `placedItems` upstream:
@@ -408,23 +383,16 @@ past that — importing `three/build/three.module.js` directly, say — gives Sp
 and it fails with `Can not resolve #include <splatDefines>`.
 
 Selection has three ways out, because a gizmo you can't dismiss is a trap: the **Done** button
-in the viewport, the one in the inspector header, and **Escape**. Escape works throughout now —
-it used to be orbit-only, because while walking it belonged to the pointer lock and stealing it
-would have left you captured with no way out.
+in the viewport, the one in the inspector header, and **Escape**. Escape is orbit-only —
+while walking it belongs to the pointer lock, and stealing it would leave you captured.
 
-## Export
-
-The top bar's **Export view** downloads a **GLB** of the scan's collider mesh plus every placed
-model, via three's `GLTFExporter` — `RoomScene.exportScene`. It hands the exporter an explicit
-array of roots (the shell, found by `userData.roomShell`, and the furniture groups out of the
-gizmo registry) rather than the whole scene, which is what keeps the lights, Spark's renderer
-object and the splat out of it without having to recognise any of them. Selection rings carry
-`userData.hideOnExport` and are excluded by `onlyVisible: true`; the shell is forced visible for
-the duration, since it stops drawing whenever the splat covers it.
-
-**The splat can't be in the file** — glTF has no Gaussian-splat primitive, and the `.spz` is a
-separate asset in its own format. A GLB of mesh + layout is the export that carries the user's
-work; a re-download of `splat_url` would carry none of it.
+**Everything along the bottom edge of the viewport shares one flex row**, in `Viewport`. The
+scene list, the status labels and the Done button each used to pin *themselves* to `bottom-3`,
+and in walk mode a controls hint landed exactly on the labels — both claimed
+`left-1/2 -translate-x-1/2`. The row's outer columns are `flex-1 min-w-0` so they stay equal
+width and the middle one is genuinely centred, and the hint stacks *above* the labels rather
+than across them. `ViewfinderLabels` is exported separately from `Viewfinder` for this reason:
+the caller owns the position, so there's only ever one thing deciding that layout.
 
 ## Commands
 

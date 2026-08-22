@@ -90,13 +90,7 @@ const noRaycast = () => null;
 /** A disc on the floor under the selection — legible from any angle, unlike an outline. */
 function SelectionRing() {
     return (
-        // `hideOnExport` keeps the ring out of the exported PNG — see RoomScene's capture().
-        <mesh
-            rotation={[-Math.PI / 2, 0, 0]}
-            position={[0, 0.012, 0]}
-            raycast={noRaycast}
-            userData={{ hideOnExport: true }}
-        >
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]} raycast={noRaycast}>
             <ringGeometry args={[0.3, 0.36, 48]} />
             <meshBasicMaterial color="#c2410c" transparent opacity={0.9} depthTest={false} />
         </mesh>
