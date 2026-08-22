@@ -57,11 +57,6 @@ Video upload is three calls, all in `MarbleClient`:
    `{display_name, model, world_prompt:{type:"video", video_prompt:{source:"media_asset", media_asset_id}}}`
    → an operation with `done:false`.
 
-Errors come back as `{"detail": "..."}` with a plain 4xx — **not** the operation envelope.
-A 422 from step 3 with "Unable to read video keyframes" means the file wasn't a decodable
-video. `MarbleClient` unwraps `detail` into a `MarbleException` so that text reaches the
-user, rather than a bare status line.
-
 Then poll `GET /marble/v1/operations/{operation_id}` until `done:true`. Generation takes
 **~5 minutes**, so this is a polled UX end to end: the browser polls our API, and
 `RoomPollingService` polls Marble on a fixed interval. Nothing holds a long request open.
@@ -88,8 +83,13 @@ store our own URL). Don't build that fallback preemptively.
 - **`models`** — the user-editable layout: one catalog model placed in a room. `room_id` FK,
   many models per room. Carries `catalog_id`, `pos_x/pos_y/pos_z`, `rotation_y` (degrees,
   yaw only), `scale`, plus **denormalised copies** of the catalog entry's `name`, `category`
-  and `model_url` — the catalog is a static frontend list rather than a table, so
-  snapshotting keeps a saved layout renderable if the catalog is later reshuffled.
+  and `model_url` — snapshotting keeps a saved layout renderable even if the catalog entry
+  behind it is later edited or deleted. Deliberately not an FK to `furniture_catalog`.
+- **`furniture_catalog`** — the placeable pieces. `name`, `category`, `model_url` +
+  `model_object_key`, `thumbnail_url` + `thumbnail_object_key`, `width_cm/depth_cm/height_cm`,
+  `built_in`, `sort_order`. The object keys are kept alongside the URLs because they're what
+  a delete needs to clean the bucket. `CatalogSeeder` writes the 14 starter entries on an
+  empty table — rows only, no binaries; see Storage rules.
 
 `RoomStatus` is `PENDING → UPLOADING → GENERATING → READY | FAILED`, but
 `RoomStatus.wireValue()` collapses that to the three strings the UI switches on:
@@ -97,16 +97,51 @@ store our own URL). Don't build that fallback preemptively.
 
 ## Storage rules
 
-- Postgres holds metadata only. **Never** store mesh, GLB, or video binaries as `bytea`.
-- The room video is spooled to a temp file, streamed to Marble, and deleted. This app never
-  keeps it — which is why the processing screen's failure state offers "scan again" rather
-  than a retry.
-- Mesh binaries stay on World Labs' hosts; we only ever handle URLs.
-- The furniture catalog is **static frontend assets**: GLBs and thumbnails under
-  `frontend/public/models` and `frontend/public/images`, served with the React build. No
-  object storage, no CDN, no catalog table. Keep the total under ~10MB, and lazy-load each
-  GLB only when a user adds that item.
-- No Render persistent disk. Nothing needs one.
+Postgres stores metadata only: never store mesh or GLB binaries as bytea.
+
+All GLB files (built-in catalog and user uploads) live in MinIO, not bundled as static
+frontend assets — this changed once user uploads entered scope. Postgres stores only the
+resulting object URL. Everything that touches the bucket goes through `StorageService`.
+
+Two addresses, and they are not interchangeable:
+
+- `MINIO_ENDPOINT` → `minio.endpoint`, what the **backend** dials. On Render use the
+  internal/private address (`http://minio-server-byne:9000`): uploads then stay inside
+  Render's network. Note the scheme — internal is plain HTTP on port 9000, and the MinIO SDK
+  needs a full URL, not a bare `host:port`.
+- `MINIO_PUBLIC_URL` → `minio.public-url`, what the **browser** fetches from
+  (`https://minio-server-byne.onrender.com`), since the internal name doesn't resolve outside
+  Render. Falls back to the endpoint when unset.
+
+In `backend/.env` **both** are the public URL: local dev can't reach the internal address at
+all. Only the Render backend service gets the internal one. Getting these backwards is easy
+and the symptom is misleading — an internal endpoint fails locally with a DNS error, while a
+public endpoint set on Render works but routes every upload out through the internet.
+
+Credentials are `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`, set as env vars on the backend
+service and found under the MinIO service's Environment tab. `application.properties` maps
+all four explicitly — same relaxed-binding reason as the Marble key.
+
+`StorageService.ensureBucket()` creates the bucket at startup and applies the anonymous-read
+policy itself, so the frontend's `useGLTF` can fetch a GLB straight from MinIO with no auth
+header. No `mc anonymous set download` step needed. Uploads still require credentials; only
+reads are public. Failures there are logged, not fatal — a slow MinIO shouldn't take the API
+down with it, and the app boots fine with MinIO absent entirely (uploads then 503 with a
+clear message, mirroring how a missing Marble key behaves).
+
+Upload flow: multipart form from React → `CatalogController` → `StorageService` streams to
+MinIO in 10MB parts → `CatalogService` writes the `furniture_catalog` row with the public
+URL. Presigned-direct-to-MinIO upload is a nice-to-have, not required.
+
+Validation is extension plus declared size — 20MB for models, 5MB for thumbnails, both in
+`MinioProperties`. No deep content scanning; the bucket is read-only to the public and the
+GLTF loader rejects garbage on its own.
+
+The two real GLBs live in `seed-assets/` at the repo root — **not** in `frontend/public` and
+not on the backend classpath. They're 56MB and 33MB, so bundling them would put ~90MB into
+every container image for files MinIO already holds permanently. `.dockerignore` excludes
+the directory. Attach them once through `/catalog` and they stay attached across deploys.
+Note both are over the 20MB upload cap as-is and need decimating first.
 
 ## API surface
 
@@ -121,16 +156,24 @@ store our own URL). Don't build that fallback preemptively.
 | `DELETE` | `/api/rooms/{id}/models` | clear the layout ("reset room") |
 | `PATCH` | `/api/models/{id}` | update transform — partial, nulls mean "leave alone" |
 | `DELETE` | `/api/models/{id}` | remove one placed model |
+| `GET` | `/api/catalog` | the furniture catalog, grouped-order by category |
+| `GET` | `/api/catalog/categories` | the fixed category list |
+| `POST` | `/api/catalog` | multipart `name`/`category`/`width`/`depth`/`height` + optional `model` and `thumbnail` files |
+| `PATCH` | `/api/catalog/{id}` | multipart, partial — omitted fields and omitted files both mean "leave alone" |
+| `DELETE` | `/api/catalog/{id}` | remove the entry and its MinIO objects |
 
 All request/response bodies are snake_case, matching what the React pages read.
 
 ## Frontend notes
 
-- `src/api/rooms.js` is the only place that talks to the backend. `createRoom` uses XHR
-  rather than fetch purely for upload progress — a bare spinner on a 400MB upload reads as
-  a hang.
-- `src/lib/store.js` is the furniture catalog, and **only** the catalog, in localStorage.
-  Rooms and models are server-side. Don't put layout state back in there.
+- `src/api/rooms.js` and `src/api/catalog.js` are the only places that talk to the backend.
+  `createRoom` and the catalog writes use XHR rather than fetch purely for upload progress —
+  a bare spinner on a 400MB upload reads as a hang.
+- Nothing is in localStorage. `src/lib/store.js` held the catalog and is **gone**; rooms,
+  models and the catalog are all server-side. Don't put any of it back there.
+- `Editor.jsx` owns the catalog fetch and passes the list into `CatalogPanel` as a prop,
+  because adding an item needs the same list to resolve a catalog id into the name, category
+  and model URL it snapshots onto the placed model.
 - The editor debounces transform writes ~500ms per model id, so a drag is one PATCH.
 - `#splat-viewport` in `components/editor/Viewport.jsx` is the reserved mount point for the
   3D renderer, which is **not built yet**. The collider mesh URL, splat URL, ground-plane
@@ -166,8 +209,11 @@ same names as real env vars.
 
 - `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`
 - `WORLD_LABS_API_KEY` — and `WORLD_LABS_API_KEY_TEST` alongside it for test generations
+- `MINIO_ENDPOINT`, `MINIO_PUBLIC_URL`, `MINIO_BUCKET` (defaults to `furniture`),
+  `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` — see Storage rules for which URL goes where
 
-The app boots without a Marble key; uploads just fail fast with a clear message instead.
+The app boots without a Marble key or MinIO; the corresponding uploads just fail fast with a
+clear message instead.
 
 ## Known risks
 
@@ -175,6 +221,8 @@ The app boots without a Marble key; uploads just fail fast with a clear message 
   regress it into a blocking request.
 - Confirm a saved layout survives a page reload before the demo. That round-trip through
   Postgres is what makes this read as a product rather than a client-side toy.
-- Source furniture GLBs early (Kenney.nl, Poly Pizza — CC0 packs). Only two catalog entries
-  currently have real models; the rest are placeholders. Asset-hunting quietly eats
-  hackathon time if left to the end.
+- Source furniture GLBs early (Kenney.nl, Poly Pizza — CC0 packs). **No catalog entry has a
+  model attached yet** — the seeder writes rows only, and the two GLBs in `seed-assets/` are
+  56MB and 33MB, over the 20MB cap and far too heavy for the editor regardless. Decimate them
+  (gltf-transform / gltfpack) and upload via `/catalog`. Asset-hunting quietly eats hackathon
+  time if left to the end.

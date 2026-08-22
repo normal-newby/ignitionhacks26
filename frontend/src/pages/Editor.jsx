@@ -9,7 +9,7 @@ import {
   deleteModel,
   clearModels,
 } from '@/api/rooms';
-import { store } from '@/lib/store';
+import { listCatalogItems } from '@/api/catalog';
 import EditorTopBar from '@/components/editor/EditorTopBar';
 import CatalogPanel from '@/components/editor/CatalogPanel';
 import Viewport from '@/components/editor/Viewport';
@@ -73,6 +73,8 @@ export default function Editor() {
   const [gridSnap, setGridSnap] = useState(false);
   const [projectName, setProjectName] = useState('');
   const [saveStatus, setSaveStatus] = useState('saved');
+  const [catalog, setCatalog] = useState([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
 
   const historyRef = useRef([]);
   // One pending timer per model id, so dragging two things doesn't cancel one of the saves.
@@ -113,6 +115,19 @@ export default function Editor() {
     return () => { cancelled = true; };
   }, [projectId, navigate]);
 
+  // Loaded once and held here rather than inside CatalogPanel, because adding an item needs
+  // to resolve a catalog id into a name/category/model URL to snapshot onto the placed model.
+  useEffect(() => {
+    let cancelled = false;
+
+    listCatalogItems()
+      .then((items) => !cancelled && setCatalog(items))
+      .catch((err) => !cancelled && console.error('Could not load the catalog', err))
+      .finally(() => !cancelled && setCatalogLoading(false));
+
+    return () => { cancelled = true; };
+  }, []);
+
   // Flush nothing on unmount beyond clearing timers — the debounce is short enough that a
   // pending write survives normal navigation within the app.
   useEffect(() => {
@@ -148,7 +163,7 @@ export default function Editor() {
 
   const handleAddItem = useCallback(
     async (catalogItemId) => {
-      const catalogItem = store.getCatalogItem(catalogItemId);
+      const catalogItem = catalog.find((c) => c.id === catalogItemId);
       if (!catalogItem) return;
 
       pushHistory();
@@ -171,7 +186,7 @@ export default function Editor() {
         setSelectedId(ui.id);
       });
     },
-    [projectId, room, pushHistory, runSave]
+    [projectId, room, catalog, pushHistory, runSave]
   );
 
   const handleSelectItem = useCallback((id) => setSelectedId(id), []);
@@ -317,7 +332,7 @@ export default function Editor() {
         onExport={handleExport}
       />
       <div className="flex-1 flex min-h-0">
-        <CatalogPanel onAdd={handleAddItem} />
+        <CatalogPanel items={catalog} loading={catalogLoading} onAdd={handleAddItem} />
         <Viewport
           room={room}
           placedItems={placedItems}

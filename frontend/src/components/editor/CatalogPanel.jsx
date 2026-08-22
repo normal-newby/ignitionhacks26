@@ -1,17 +1,19 @@
 import { useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
 import Thumbnail from '@/components/Thumbnail';
-import { store } from '@/lib/store';
+import { CATEGORIES } from '@/api/catalog';
 
 /**
  * Left rail — furniture catalog grouped by category.
  * Drag a card onto the viewport, or click/tap to add.
+ *
+ * Items are passed in rather than fetched here: the editor needs the same list to resolve a
+ * card into a placed model, so one load upstream serves both.
  */
-export default function CatalogPanel({ onAdd }) {
+export default function CatalogPanel({ items = [], loading = false, onAdd }) {
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
-  const items = store.listCatalogItems();
-  const categories = ['All', ...store.listCategories()];
+  const categories = ['All', ...CATEGORIES];
 
   const filtered = useMemo(() => {
     return items.filter((item) => {
@@ -70,7 +72,12 @@ export default function CatalogPanel({ onAdd }) {
 
       {/* Scrollable item list */}
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
-        {Object.keys(grouped).length === 0 && (
+        {loading && (
+          <p className="text-sm text-muted-foreground text-center py-8 font-body">
+            Loading catalog…
+          </p>
+        )}
+        {!loading && Object.keys(grouped).length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-8 font-body">
             No items match your search.
           </p>

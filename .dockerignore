@@ -14,3 +14,7 @@ frontend/dist
 # Local secrets — Render supplies these as real env vars.
 backend/.env
 backend/.env.gpg
+
+# Source GLBs for the built-in catalog. Uploaded once through /catalog and then served from
+# MinIO, so they have no business inside the image — they're ~90MB between them.
+seed-assets

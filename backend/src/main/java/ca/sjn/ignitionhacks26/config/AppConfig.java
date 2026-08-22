@@ -13,7 +13,7 @@ import java.time.Duration;
 @Configuration
 @EnableAsync
 @EnableScheduling
-@EnableConfigurationProperties(MarbleProperties.class)
+@EnableConfigurationProperties({MarbleProperties.class, MinioProperties.class})
 public class AppConfig {
 
     /**

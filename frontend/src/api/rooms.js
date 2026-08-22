@@ -6,6 +6,8 @@
  * survive a reload.
  */
 
+import { errorMessageFrom } from './errors';
+
 const BASE = '/api';
 
 async function request(path, { method = 'GET', body } = {}) {
@@ -19,8 +21,8 @@ async function request(path, { method = 'GET', body } = {}) {
     if (res.status === 404) return null;
 
     if (!res.ok) {
-        const detail = await res.text().catch(() => '');
-        throw new Error(`${method} ${path} failed (${res.status})${detail ? `: ${detail}` : ''}`);
+        const body = await res.text().catch(() => '');
+        throw new Error(errorMessageFrom(body, res.status));
     }
 
     if (res.status === 204) return null;
@@ -79,7 +81,7 @@ export function createRoom({ name, video, onProgress }) {
                     reject(new Error('The server returned a response we could not read.'));
                 }
             } else {
-                reject(new Error(xhr.responseText || `Upload failed (${xhr.status})`));
+                reject(new Error(errorMessageFrom(xhr.responseText, xhr.status)));
             }
         };
         xhr.onerror = () => reject(new Error('The upload could not reach the server.'));
