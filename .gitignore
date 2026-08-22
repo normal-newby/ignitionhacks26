@@ -69,3 +69,4 @@ frontend/src/helper.py
 
 .env
 .env.properties
+.claude/
