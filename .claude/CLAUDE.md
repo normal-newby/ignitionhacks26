@@ -118,6 +118,16 @@ all. Only the Render backend service gets the internal one. Getting these backwa
 and the symptom is misleading — an internal endpoint fails locally with a DNS error, while a
 public endpoint set on Render works but routes every upload out through the internet.
 
+The internal hostname is **not** derivable from the public one. `minio-server-byne.onrender.com`
+carries a random suffix Render adds for global uniqueness; the internal name is the service's
+own name, and the internal port is whatever MinIO binds (a Render web service must listen on
+`$PORT`, typically 10000, not MinIO's default 9000). Read both off the service's Connect panel
+rather than guessing. Guessing produces `UnknownHostException: minio-server-byne`, which
+`StorageService.storageFailureMessage` now translates into something that names the cause.
+
+`ensureBucket()` logs the same failure at startup, so a bad endpoint is visible in the deploy
+log before anyone tries an upload — check there first.
+
 Credentials are `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`, set as env vars on the backend
 service and found under the MinIO service's Environment tab. `application.properties` maps
 all four explicitly — same relaxed-binding reason as the Marble key.

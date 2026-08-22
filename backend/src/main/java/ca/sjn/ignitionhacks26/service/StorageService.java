@@ -15,7 +15,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.ConnectException;
 import java.net.URLConnection;
+import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -126,17 +128,27 @@ public class StorageService {
         }
 
         String key = prefix + "/" + UUID.randomUUID() + "." + extension;
-        try (InputStream in = file.getInputStream()) {
+
+        // Opening the stream is kept out of the putObject try block on purpose. Reaching
+        // MinIO fails with UnknownHostException/ConnectException, both of which are
+        // IOExceptions — catching them together blames the browser's upload for what is
+        // actually a storage misconfiguration, and sends you looking in the wrong place.
+        InputStream in;
+        try {
+            in = file.getInputStream();
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Could not read the uploaded file: " + e.getMessage(), e);
+        }
+
+        try (in) {
             client.putObject(PutObjectArgs.builder()
                     .bucket(properties.getBucket())
                     .object(key)
                     .stream(in, file.getSize(), PART_SIZE)
                     .contentType(contentTypeFor(extension, file.getContentType()))
                     .build());
-        } catch (IOException e) {
-            throw new IllegalStateException("Could not read the uploaded file: " + e.getMessage(), e);
         } catch (Exception e) {
-            throw new IllegalStateException("Could not store the file: " + e.getMessage(), e);
+            throw new IllegalStateException(storageFailureMessage(e), e);
         }
 
         log.info("Stored {} ({} bytes) as {}", file.getOriginalFilename(), file.getSize(), key);
@@ -177,6 +189,29 @@ public class StorageService {
         } catch (Exception e) {
             log.warn("Could not delete object {}: {}", objectKey, e.getMessage());
         }
+    }
+
+    /**
+     * Turns a storage failure into something that names the actual problem. An unresolvable
+     * host is nearly always {@code minio.endpoint} pointing at an address this process can't
+     * see — a Render-internal name from a local machine, or a service name that doesn't match
+     * the one Render assigned — and "Name or service not known" on its own doesn't say that.
+     */
+    private String storageFailureMessage(Exception e) {
+        Throwable cause = e;
+        while (cause != null) {
+            if (cause instanceof UnknownHostException) {
+                return "Could not resolve the storage host in minio.endpoint (" + properties.getEndpoint()
+                        + "). Check MINIO_ENDPOINT: a Render-internal address only resolves from inside"
+                        + " Render, and it must match the service's real name and port.";
+            }
+            if (cause instanceof ConnectException) {
+                return "Could not connect to storage at " + properties.getEndpoint()
+                        + ". Check MINIO_ENDPOINT's port, and that the MinIO service is awake.";
+            }
+            cause = cause.getCause() == cause ? null : cause.getCause();
+        }
+        return "Could not store the file: " + e.getMessage();
     }
 
     public String publicUrlFor(String key) {
