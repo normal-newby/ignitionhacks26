@@ -34,7 +34,7 @@ export default function Layout() {
             <div className="w-8 h-8 bg-[#3b82f6] border-2 border-[#1e40af] flex items-center justify-center">
               <Boxes className="w-4 h-4 text-white" />
             </div>
-            <span className="font-heading text-sm text-[#252525] hidden sm:inline">ROOMCAST</span>
+            <span className="font-heading text-sm text-[#252525] hidden sm:inline">REFURNISH</span>
           </Link>
 
           <nav className="flex items-center gap-1">

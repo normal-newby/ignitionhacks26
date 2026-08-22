@@ -51,10 +51,10 @@ export default function Home() {
       <div className="flex items-end justify-between mb-8">
         <div>
           <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#252525]">
-            YOUR ROOMS
+            SCANNED ROOMS
           </h1>
           <p className="text-muted-foreground text-sm mt-1 font-terminal text-[#5a6c80]">
-            Scan a space, then furnish it in 3D.
+            Film your room and bring it to life!
           </p>
         </div>
         <button
@@ -62,7 +62,7 @@ export default function Home() {
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-none bg-[#3b82f6] text-white font-terminal text-sm font-medium hover:opacity-90 transition-opacity border-2 border-[#1e40af] shadow-[2px_2px_0px_#1e40af] hover:shadow-[1px_1px_0px_#1e40af] active:shadow-none active:translate-x-0.5 active:translate-y-0.5"
 >
           <Plus className="w-4 h-4" />
-          SCAN A ROOM
+          SCAN
         </button>
       </div>
 
@@ -90,7 +90,7 @@ export default function Home() {
             onClick={() => navigate('/upload')}
             className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-none bg-[#3b82f6] text-white font-terminal text-sm font-medium hover:opacity-90 transition-opacity border-2 border-[#1e40af] shadow-[2px_2px_0px_#1e40af] hover:shadow-[1px_1px_0px_#1e40af] active:shadow-none active:translate-x-0.5 active:translate-y-0.5"
 >
-            SCAN YOUR FIRST ROOM
+            UPLOAD YOUR FIRST ROOM
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

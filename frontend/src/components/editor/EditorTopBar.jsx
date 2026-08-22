@@ -20,7 +20,7 @@ export default function EditorTopBar({
         <Link
           to="/rooms"
           className="p-1 border-2 border-[#1e40af] hover:bg-[#5a6c80] hover:text-white transition-colors flex-shrink-0 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
-          title="Back to projects"
+          title="Back to rooms"
         >
           <ArrowLeft className="w-4 h-4" />
         </Link>
