@@ -1,4 +1,4 @@
-import { Move, RotateCw, Maximize, Grid3x3, Undo2, RotateCcw, Orbit, Footprints, Check, Sparkles, Boxes } from 'lucide-react';
+import { Move, RotateCw, Maximize, Grid3x3, Undo2, RotateCw as RotateCcw, Check, Sparkles, Boxes } from 'lucide-react';
 import Viewfinder from '@/components/Viewfinder';
 import RoomScene from './scene/RoomScene';
 
@@ -8,10 +8,7 @@ const TRANSFORM_MODES = [
   { key: 'scale', label: 'Scale', icon: Maximize },
 ];
 
-const NAV_MODES = [
-  { key: 'orbit', label: 'Orbit the room', icon: Orbit },
-  { key: 'walk', label: 'Walk around inside', icon: Footprints },
-];
+// NAV_MODES removed - using unified camera controls
 
 const ROOM_MODES = [
   { key: 'splat', label: 'Photoreal scan', icon: Sparkles },
@@ -33,12 +30,10 @@ export default function Viewport({
   selectedId,
   transformMode,
   gridSnap,
-  navMode,
   roomMode,
   splatQuality,
   canUndo,
   onSetTransformMode,
-  onSetNavMode,
   onSetRoomMode,
   onSetSplatQuality,
   onToggleGridSnap,
@@ -48,7 +43,8 @@ export default function Viewport({
   onUpdateItem,
   onDropItem,
 }) {
-  const arranging = navMode === 'orbit';
+  // Always in arranging mode with unified controls
+  const arranging = true;
   const hasSplat = Boolean(room?.splat_url);
   const hasHighRes = Boolean(room?.splat_url_full_res);
 
@@ -98,30 +94,6 @@ export default function Viewport({
         >
           <Grid3x3 className="w-4 h-4" />
         </button>
-
-        <div className="w-px h-6 bg-border/60 mx-1" />
-
-        {/* Orbit / walk */}
-        <div className="flex items-center gap-0.5">
-          {NAV_MODES.map((mode) => {
-            const Icon = mode.icon;
-            const active = navMode === mode.key;
-            return (
-              <button
-                key={mode.key}
-                onClick={() => onSetNavMode(mode.key)}
-                title={mode.label}
-                className={`p-2 rounded-md transition-colors ${
-                  active
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-              </button>
-            );
-          })}
-        </div>
 
         <div className="w-px h-6 bg-border/60 mx-1" />
 
@@ -208,7 +180,6 @@ export default function Viewport({
             selectedId={selectedId}
             transformMode={transformMode}
             gridSnap={gridSnap}
-            navMode={navMode}
             roomMode={roomMode}
             splatQuality={splatQuality}
             onSelectItem={onSelectItem}

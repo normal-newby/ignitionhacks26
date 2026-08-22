@@ -1,11 +1,11 @@
-import { Suspense, Component, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, Component, useCallback, useMemo, useRef, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
-import { AdaptiveDpr, OrbitControls, TransformControls, useGLTF, useProgress } from '@react-three/drei';
-import { MOUSE, Plane, Raycaster, Vector2, Vector3 } from 'three';
+import { AdaptiveDpr, TransformControls, useGLTF, useProgress } from '@react-three/drei';
+import { Plane, Raycaster, Vector2, Vector3 } from 'three';
 import RoomShell from './RoomShell';
 import RoomSplat from './RoomSplat';
 import PlacedModel from './PlacedModel';
-import WalkControls, { EYE_HEIGHT } from './WalkControls';
+import UnifiedControls from './UnifiedControls';
 
 // Marble's collider meshes are DRACO-compressed, so the room simply will not appear without a
 // decoder. drei defaults to pulling one from gstatic.com at load time; pointing it at our own
@@ -33,22 +33,7 @@ function Bridge({ handle }) {
     return null;
 }
 
-/** Puts the camera somewhere sensible each time the navigation mode changes. */
-function CameraRig({ mode }) {
-    const { camera } = useThree();
-
-    useEffect(() => {
-        if (mode === 'walk') {
-            camera.position.set(0, EYE_HEIGHT, 0);
-            camera.lookAt(0, EYE_HEIGHT, -2);
-        } else {
-            camera.position.set(...ORBIT_CAMERA);
-            camera.lookAt(0, 0.8, 0);
-        }
-    }, [mode, camera]);
-
-    return null;
-}
+/** CameraRig removed - camera positioning handled by UnifiedControls */
 
 /**
  * The load progress readout.
@@ -105,7 +90,6 @@ export default function RoomScene({
     selectedId,
     transformMode,
     gridSnap,
-    navMode,
     roomMode,
     splatQuality,
     onSelectItem,
@@ -129,9 +113,8 @@ export default function RoomScene({
         bumpRegistry((n) => n + 1);
     }, []);
 
-    // Only in orbit mode: a gizmo you can't click while the pointer is locked is just an
-    // obstruction, and it would swallow the walk-mode pointer events.
-    const attached = navMode === 'orbit' ? registry.current.get(selectedId) ?? null : null;
+    // Always show gizmo in unified mode
+    const attached = registry.current.get(selectedId) ?? null;
 
     /** Screen point -> floor point, for dropping a catalog card where the cursor is. */
     const floorPointAt = useCallback((clientX, clientY) => {
@@ -233,10 +216,9 @@ export default function RoomScene({
                 // more usual 0.5 because the dpr cap above already cut resolution once, and
                 // stacking both drops is more softness than the frames are worth.
                 performance={{ min: 0.75 }}
-                onPointerMissed={() => navMode === 'orbit' && onSelectItem(null)}
+                onPointerMissed={() => onSelectItem(null)}
             >
                 <Bridge handle={handle} />
-                <CameraRig mode={navMode} />
                 <AdaptiveDpr />
 
                 {/* Marble bakes lighting into the scan, so this is mostly here for the
@@ -308,32 +290,16 @@ export default function RoomScene({
                     />
                 )}
 
-                {navMode === 'walk'
-                    ? <WalkControls />
-                    : (
-                        <OrbitControls
-                            makeDefault
-                            regress
-                            enableDamping
-                            dampingFactor={0.12}
-                            target={[0, 0.8, 0]}
-                            maxPolarAngle={Math.PI / 2 + 0.2}
-                            // Swapped from drei's default (left rotate, right pan): left click
-                            // moves across the room, right click orbits the view around it.
-                            mouseButtons={{ LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.ROTATE }}
-                        />
-                    )}
+                <UnifiedControls makeDefault />
             </Canvas>
 
             <LoadingOverlay />
 
-            {navMode === 'walk' && (
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-none">
-                    <p className="font-mono text-[10px] uppercase tracking-wider text-primary/90 bg-background/70 backdrop-blur-sm px-3 py-1 rounded">
-                        Click to look · WASD to move · Shift to hurry · Esc to release
-                    </p>
-                </div>
-            )}
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-none">
+                <p className="font-mono text-[10px] uppercase tracking-wider text-primary/90 bg-background/70 backdrop-blur-sm px-3 py-1 rounded">
+                    WASD to move · EQ to ascend/descend · Left-click drag to rotate · Right-click drag to pan · Scroll to zoom
+                </p>
+            </div>
         </div>
     );
 }

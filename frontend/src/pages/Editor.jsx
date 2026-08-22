@@ -73,7 +73,6 @@ export default function Editor() {
   const [placedItems, setPlacedItems] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [transformMode, setTransformMode] = useState('move');
-  const [navMode, setNavMode] = useState('orbit');
   // Photoreal by default — it's the whole point of scanning the room. The mesh is one click
   // away for anyone whose machine struggles with half a million splats.
   const [roomMode, setRoomMode] = useState('splat');
@@ -220,9 +219,8 @@ export default function Editor() {
    * mode: while walking, Escape belongs to the pointer lock, and stealing it would leave you
    * captured with no way out.
    */
+  // Always allow escape to deselect in unified mode
   useEffect(() => {
-    if (navMode !== 'orbit') return undefined;
-
     const onKeyDown = (e) => {
       // Not while typing a position into the inspector.
       if (e.key !== 'Escape' || e.target.tagName === 'INPUT') return;
@@ -230,7 +228,7 @@ export default function Editor() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [navMode]);
+  }, []);
 
   /** Catalog lookup for the renderer, which sizes each model from its entry's dimensions. */
   const catalogById = useMemo(
@@ -389,12 +387,10 @@ export default function Editor() {
           selectedId={selectedId}
           transformMode={transformMode}
           gridSnap={gridSnap}
-          navMode={navMode}
           roomMode={roomMode}
           splatQuality={splatQuality}
           canUndo={historyRef.current.length > 0}
           onSetTransformMode={setTransformMode}
-          onSetNavMode={setNavMode}
           onSetRoomMode={setRoomMode}
           onSetSplatQuality={setSplatQuality}
           onToggleGridSnap={handleToggleGridSnap}
