@@ -3,8 +3,7 @@ WORKDIR /app
 COPY backend ./backend
 COPY frontend ./frontend
 WORKDIR /app/backend
-RUN mvn package -DskipTests
-RUN find /app/backend/target -name index.html
+RUN mvn -B -ntp package -DskipTests
 
 FROM eclipse-temurin:25-jre-jammy
 WORKDIR /app
