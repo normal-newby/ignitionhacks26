@@ -30,7 +30,7 @@ MINIO_PUBLIC_URL=https://minio-server-byne.onrender.com/
 MINIO_BUCKET=furniture
 
 # Gemini API (dimension estimation)
-GEMINI_API_KINSERT_GEMINI_API_KEY_HEREkey
+GEMINI_API_KEY=INSERT_GEMINI_API_KEY
 ```
 
 ### Backend
