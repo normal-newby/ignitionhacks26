@@ -62,9 +62,10 @@ public record CatalogItemResponse(
                 // upload with a missing uploader.
                 appOwned,
                 item.isPublic(),
-                // App-owned entries read as "Roomcast" rather than blank: the rail shows this
-                // next to a piece's name, and an empty byline looks like missing data.
-                appOwned ? "Roomcast" : owner.getDisplayName(),
+                // App-owned entries read as "Refurnish" rather than blank: the rail shows this
+                // next to a piece's name, and an empty byline looks like missing data. It is a
+                // display string, not a stored owner — the column stays null.
+                appOwned ? "Refurnish" : owner.getDisplayName(),
                 mine,
                 // Mirrors CatalogService.requireEditable exactly.
                 appOwned || mine

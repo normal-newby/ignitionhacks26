@@ -124,7 +124,7 @@ export default function Landing() {
             <div className="w-8 h-8 bg-[#3b82f6] border-2 border-[#1e40af] flex items-center justify-center">
               <Boxes className="w-4 h-4 text-white" />
             </div>
-            <span className="font-heading text-sm text-[#252525]">ROOMCAST</span>
+            <span className="font-heading text-sm text-[#252525]">REFURNISH</span>
           </div>
           <nav className="flex items-center gap-2">
             <Link
@@ -157,7 +157,7 @@ export default function Landing() {
                 ANYTHING
               </h1>
               <p className="font-mono text-sm text-[#5a6c80] mt-6 max-w-md leading-relaxed">
-                Upload a short video of a room. Roomcast rebuilds it in 3D, then lets you place
+                Upload a short video of a room. Refurnish rebuilds it in 3D, then lets you place
                 real furniture at real size inside it — so you find out the sofa doesn't fit
                 without carrying it up the stairs first.
               </p>
@@ -255,7 +255,7 @@ export default function Landing() {
 
       <footer className="border-t-2 border-[#1e40af] bg-[#e2e8f0]">
         <div className="max-w-6xl mx-auto px-6 py-6 flex flex-wrap items-center justify-between gap-3">
-          <span className="font-heading text-[8px] uppercase text-[#1e40af]">Roomcast</span>
+          <span className="font-heading text-[8px] uppercase text-[#1e40af]">Refurnish</span>
           <span className="font-mono text-[11px] text-[#5a6c80]">
             3D reconstruction by World Labs Marble
           </span>

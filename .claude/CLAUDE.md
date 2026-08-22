@@ -1,4 +1,4 @@
-# Roomcast — 3D Room Planner
+# Refurnish — 3D Room Planner
 
 24-hour hackathon build. Upload a video of one room → World Labs Marble reconstructs the
 room shell (walls, floor, fixed architecture) → the user browses a small furniture catalog
@@ -331,13 +331,13 @@ export handler at all, so re-adding the button means writing one first.
   to the backend. `createRoom` and the catalog writes use XHR rather than fetch purely for
   upload progress — a bare spinner on a 400MB upload reads as a hang. The XHR paths have to set
   the auth header themselves; `authHeaders()` is spread into both.
-- **The signed-in account is the only thing in localStorage**, under `roomcast.session`, and
+- **The signed-in account is the only thing in localStorage**, under `refurnish.session`, and
   `src/api/session.js` is the only module that touches it. Rooms, models and the catalog stay
   server-side — `src/lib/store.js` held the catalog and is **gone**. Don't put any of that
   back. The session is the one exception because it has nowhere else to live: the backend's
   notion of who is asking *is* the header, so the browser has to remember what to send.
 - A 401 from any api module calls `handleUnauthorized()`, which clears the session and fires
-  a `roomcast:signed-out` event. The api modules aren't React and can't route anywhere;
+  a `refurnish:signed-out` event. The api modules aren't React and can't route anywhere;
   `AuthProvider` listens, and `RequireAuth` does the redirecting. One place decides where a
   dead session lands.
 - **Routing is two tiers.** `/` and `/login` are public; everything else sits behind
@@ -555,7 +555,7 @@ mvn -B -ntp compile -DskipTests -Dskip.installnodenpm -Dskip.npm
 mvn -B -ntp package -DskipTests    # full build, including the React bundle
 
 # Container build (what Render runs)
-docker build -t roomcast .
+docker build -t refurnish .
 ```
 
 ## Environment

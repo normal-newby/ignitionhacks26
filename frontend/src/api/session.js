@@ -9,10 +9,13 @@
  * send. Nothing else belongs here.
  */
 
-const KEY = 'roomcast.session';
+// Renamed with the app. Anyone holding a session under the old `roomcast.session` key reads
+// as signed out and signs in again — the key is the only place that value was ever used, so
+// there is nothing to migrate, just one login.
+const KEY = 'refurnish.session';
 
 /** Fired when a stored session stops working, so React can drop back to the login screen. */
-export const SIGNED_OUT_EVENT = 'roomcast:signed-out';
+export const SIGNED_OUT_EVENT = 'refurnish:signed-out';
 
 export function readSession() {
     try {

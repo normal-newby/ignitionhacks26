@@ -67,7 +67,7 @@ public class RoomService {
 
         File spooled;
         try {
-            spooled = File.createTempFile("roomcast-", "." + extension);
+            spooled = File.createTempFile("refurnish-", "." + extension);
             video.transferTo(spooled);
         } catch (IOException e) {
             markFailed(room.getId(), "Could not read the uploaded video: " + e.getMessage());
