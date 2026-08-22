@@ -62,7 +62,7 @@ export default function Home() {
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-none bg-[#3b82f6] text-white font-terminal text-sm font-medium hover:opacity-90 transition-opacity border-2 border-[#1e40af] shadow-[2px_2px_0px_#1e40af] hover:shadow-[1px_1px_0px_#1e40af] active:shadow-none active:translate-x-0.5 active:translate-y-0.5"
 >
           <Plus className="w-4 h-4" />
-          UPLOAD
+          SCAN
         </button>
       </div>
 

@@ -10,7 +10,7 @@ export default function Layout() {
             <div className="w-8 h-8 rounded-md bg-ink flex items-center justify-center transition-transform group-hover:scale-105" style={{ backgroundColor: 'hsl(var(--foreground))' }}>
               <Boxes className="w-4 h-4 text-background" style={{ color: 'hsl(var(--background))' }} />
             </div>
-            <span className="font-heading text-xl font-semibold tracking-tight">Roomcast</span>
+            <span className="font-heading text-xl font-semibold tracking-tight">Refurnish</span>
           </Link>
           <nav className="flex items-center gap-6 text-sm text-muted-foreground font-body">
             <Link to="/" className="hover:text-foreground transition-colors">Rooms</Link>
