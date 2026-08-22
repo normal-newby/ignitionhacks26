@@ -16,35 +16,17 @@ const STEPS = [
   {
     icon: Video,
     title: 'Scan',
-    body: 'Walk one room with your phone camera. A short video is the whole input — no measuring, no floor plan, no depth sensor.',
+    body: 'Film a room panaroma-style with your phone camera. That\'s all you need! No measurements required.',
   },
   {
     icon: Sparkles,
     title: 'Reconstruct',
-    body: 'World Labs Marble rebuilds the space as a photoreal 3D scene: walls, floor, windows, the light coming through them.',
+    body: 'World Labs Marble rebuilds the whole room as a 3D scene: walls, floor, windows, and everything else.',
   },
   {
     icon: Move3d,
     title: 'Furnish',
-    body: 'Drag pieces in from the catalog, then move, turn and resize them at true scale. Walk through the result at eye height.',
-  },
-];
-
-const FEATURES = [
-  {
-    icon: Save,
-    title: 'Layouts persist',
-    body: 'Every placement is saved server-side the moment it lands, so a layout survives a reload, a new tab, or a different machine.',
-  },
-  {
-    icon: Boxes,
-    title: 'Bring your own furniture',
-    body: 'Upload a GLB to your own catalog. Keep it private to your account, or share it and let everyone place it.',
-  },
-  {
-    icon: Users,
-    title: 'Your rooms are yours',
-    body: 'Scans are tied to your account. Nobody else sees the inside of your home in their project grid.',
+    body: 'Drag furniture in from the catalog. Move, turn and resize them however you want. Walk through the result at eye height.',
   },
 ];
 
@@ -149,7 +131,7 @@ export default function Landing() {
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
             <div>
               <span className="inline-block px-2.5 py-1 mb-6 bg-[#cbd5e1] border-2 border-[#1e40af] font-heading text-[8px] uppercase text-[#1e40af]">
-                3D room planner
+                3D interior planner
               </span>
               <h1 className="font-heading text-lg sm:text-xl lg:text-2xl leading-[1.7] text-[#252525]">
                 FURNISH A ROOM<br />
@@ -157,9 +139,9 @@ export default function Landing() {
                 ANYTHING
               </h1>
               <p className="font-mono text-sm text-[#5a6c80] mt-6 max-w-md leading-relaxed">
-                Upload a short video of a room. Refurnish rebuilds it in 3D, then lets you place
-                real furniture at real size inside it — so you find out the sofa doesn't fit
-                without carrying it up the stairs first.
+                Upload a short panorama video of a room. Refurnish rebuilds it in 3D, then lets you place
+                real furniture at real size inside it. No more relying on imaginary measurements - see if
+                that sofa fits in before you move it.
               </p>
               <div className="flex flex-wrap gap-3 mt-8">
                 <Link to="/login?mode=register" className={PRIMARY_BUTTON}>
@@ -171,7 +153,7 @@ export default function Landing() {
                 </Link>
               </div>
               <p className="font-mono text-[11px] text-[#5a6c80] mt-4">
-                Free · No card · A scan takes about five minutes
+                100% Free | Five minutes to scan
               </p>
             </div>
 
@@ -192,7 +174,7 @@ export default function Landing() {
           <div className="max-w-6xl mx-auto px-6 py-14">
             <h2 className="font-heading text-sm uppercase text-[#252525] mb-2">How it works</h2>
             <p className="font-mono text-sm text-[#5a6c80] mb-10">
-              Three steps, one of which is waiting.
+              Three simple steps
             </p>
             <div className="grid md:grid-cols-3 gap-5">
               {STEPS.map((step, index) => (
@@ -214,53 +196,7 @@ export default function Landing() {
             </div>
           </div>
         </section>
-
-        {/* What you get */}
-        <section className="max-w-6xl mx-auto px-6 py-14">
-          <h2 className="font-heading text-sm uppercase text-[#252525] mb-10">
-            What you get
-          </h2>
-          <div className="grid md:grid-cols-3 gap-5">
-            {FEATURES.map((feature) => (
-              <div key={feature.title} className={`${PANEL} p-5`}>
-                <feature.icon className="w-5 h-5 text-[#3b82f6] mb-4" />
-                <h3 className="font-heading text-[10px] uppercase text-[#252525] mb-3 leading-relaxed">
-                  {feature.title}
-                </h3>
-                <p className="font-mono text-xs text-[#5a6c80] leading-relaxed">{feature.body}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Closing call to action */}
-        <section className="max-w-6xl mx-auto px-6 pb-16">
-          <div className="bg-[#3b82f6] border-2 border-[#1e40af] shadow-[6px_6px_0px_#1e40af] px-6 py-10 sm:px-10 text-center">
-            <h2 className="font-heading text-xs sm:text-sm uppercase text-white leading-relaxed">
-              Make an account and scan a room
-            </h2>
-            <p className="font-mono text-sm text-white/85 mt-4 max-w-md mx-auto">
-              It takes a username, a password, and a walk around one room with your phone.
-            </p>
-            <Link
-              to="/login?mode=register"
-              className="inline-flex items-center justify-center gap-2 mt-7 px-6 py-3 bg-[#e2e8f0] text-[#252525] font-terminal text-lg uppercase border-2 border-[#1e40af] shadow-[3px_3px_0px_#1e40af] hover:shadow-[1px_1px_0px_#1e40af] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-shadow"
-            >
-              Create account
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-        </section>
       </main>
-
-      <footer className="border-t-2 border-[#1e40af] bg-[#e2e8f0]">
-        <div className="max-w-6xl mx-auto px-6 py-6 flex flex-wrap items-center justify-between gap-3">
-          <span className="font-heading text-[8px] uppercase text-[#1e40af]">Refurnish</span>
-          <span className="font-mono text-[11px] text-[#5a6c80]">
-            3D reconstruction by World Labs Marble
-          </span>
-        </div>
-      </footer>
     </div>
   );
 }
