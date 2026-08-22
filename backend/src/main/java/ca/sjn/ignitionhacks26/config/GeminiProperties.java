@@ -22,7 +22,7 @@ public class GeminiProperties {
      * Flash rather than Pro: this is one short structured answer about everyday furniture,
      * and the admin is waiting on it with a spinner.
      */
-    private String model = "gemini-3.6-flash";
+    private String model = "gemini-3.1-flash-lite";
 
     /**
      * A reference photo is sent inline (base64 in the request body), not by URL, so it has to

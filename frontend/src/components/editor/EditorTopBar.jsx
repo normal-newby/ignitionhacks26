@@ -28,13 +28,16 @@ export default function EditorTopBar({
           type="text"
           value={projectName}
           onChange={(e) => onRename(e.target.value)}
-          className="font-mono text-md font-bold bg-transparent border-none focus:outline-none focus:ring-0 max-w-[240px] truncate text-[#252525] uppercase"
-          style={{ fontFamily: '"Press Start 2P"' }}
+          // `text-xs`, not the `text-md` that was here: `text-md` isn't a Tailwind class at
+          // all, so this inherited the 16px body size — fine for a normal mono, oversized for
+          // a pixel face that draws half again as wide.
+          className="font-heading text-xs bg-transparent border-none focus:outline-none focus:ring-0 max-w-[240px] truncate text-[#252525] uppercase"
         />
       </div>
 
-      {/* Center: save status */}
-      <div className="flex items-center gap-1 text-xs font-mono text-[#252525]" style={{ fontFamily: '"Press Start 2P"' }}>
+      {/* Right: save status. It sat centred while an export button held the right-hand slot;
+          with that gone, `justify-between` puts it on the end rather than leaving a gap. */}
+      <div className="flex items-center gap-1 text-[10px] font-heading text-[#252525]">
         {saveStatus === 'saving' ? (
           <>
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -53,15 +56,6 @@ export default function EditorTopBar({
         )}
       </div>
 
-      {/* Right: export */}
-      <button
-        onClick={onExport}
-        className="inline-flex items-center gap-1 px-2 py-1 border-2 border-[#1e40af] bg-[#e2e8f0] text-[#252525] font-mono text-xs font-bold hover:bg-[#5a6c80] hover:text-white transition-colors active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
-        style={{ fontFamily: '"Press Start 2P"' }}
-      >
-        <Share2 className="w-3.5 h-3.5" />
-        EXPORT VIEW
-      </button>
     </div>
   );
 }

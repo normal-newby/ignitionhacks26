@@ -26,10 +26,24 @@
         --ring: 217 91% 60%;
         --radius: 0rem; /* No rounded corners for retro aesthetic */
 
-        --font-heading: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-        --font-body: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-        --font-display: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-        --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+        /*
+         * The three pixel faces loaded in index.html. These vars used to name 'JetBrains
+         * Mono', which is not one of them and is not linked anywhere — so every
+         * `font-heading`/`font-body`/`font-mono` in the app silently fell through to the
+         * system monospace, and the only way anything got a pixel face was an inline
+         * `style={{ fontFamily: ... }}` on the element. Naming the real fonts here is what
+         * makes the Tailwind classes mean something.
+         *
+         * Press Start 2P is display-only: it has no lowercase worth reading and its glyphs are
+         * ~1.5x the width of a normal mono at the same size, so it goes on headings and short
+         * uppercase labels. Space Mono carries body and mono text at readable metrics. VT323 is
+         * the terminal face, used on buttons.
+         */
+        --font-heading: 'Press Start 2P', 'Space Mono', ui-monospace, monospace;
+        --font-display: 'Press Start 2P', 'Space Mono', ui-monospace, monospace;
+        --font-body: 'Space Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+        --font-mono: 'Space Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+        --font-terminal: 'VT323', 'Space Mono', ui-monospace, monospace;
 
         --sidebar-background: 214 32% 91%;
         --sidebar-foreground: 220 9% 15%;

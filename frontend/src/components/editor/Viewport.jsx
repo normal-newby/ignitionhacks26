@@ -72,13 +72,13 @@ export default function Viewport({
   const hasHighRes = Boolean(room?.splat_url_full_res);
 
   return (
-    <div className="flex-1 relative flex flex-col bg-background min-w-0">
+    <div className="flex-1 relative flex flex-col bg-[#cbd5e1] min-w-0">
       {/* Toolbar overlay.
           No backdrop-blur here or on the scene list below, on purpose: backdrop-filter over a
           WebGL canvas makes the compositor re-blur that region every frame the canvas draws,
           which in a walkthrough is every frame. At 90% opacity the blur was working on the
           10% of backdrop that shows through, so it cost real frames and looked the same. */}
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-card/90 rounded-lg border border-border/60 p-1 shadow-sm">
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-[#e2e8f0] border-2 border-[#1e40af] p-1 shadow-[2px_2px_0px_#1e40af]">
         {/* Transform mode toggles */}
         <div className="flex items-center gap-0.5">
           {TRANSFORM_MODES.map((mode) => {
@@ -90,10 +90,10 @@ export default function Viewport({
                 onClick={() => onSetTransformMode(mode.key)}
                 disabled={!arranging}
                 title={arranging ? mode.label : `${mode.label} — switch to orbit to arrange`}
-                className={`p-2 rounded-md transition-colors disabled:opacity-30 ${
+                className={`p-2 border-2 transition-colors disabled:opacity-30 ${
                   active
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted'
+                    ? 'bg-[#3b82f6] text-white border-[#1e40af]'
+                    : 'text-[#5a6c80] border-transparent hover:bg-[#cbd5e1] hover:text-[#252525]'
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -102,23 +102,23 @@ export default function Viewport({
           })}
         </div>
 
-        <div className="w-px h-6 bg-border/60 mx-1" />
+        <div className="w-px h-6 bg-[#1e40af]/40 mx-1" />
 
         {/* Grid snap toggle */}
         <button
           onClick={onToggleGridSnap}
           disabled={!arranging}
           title="Grid snap"
-          className={`p-2 rounded-md transition-colors disabled:opacity-30 ${
+          className={`p-2 border-2 transition-colors disabled:opacity-30 ${
             gridSnap
-              ? 'bg-secondary/20 text-secondary'
-              : 'text-muted-foreground hover:bg-muted'
+              ? 'bg-[#5a6c80] text-white border-[#1e40af]'
+              : 'text-[#5a6c80] border-transparent hover:bg-[#cbd5e1] hover:text-[#252525]'
           }`}
         >
           <Grid3x3 className="w-4 h-4" />
         </button>
 
-        <div className="w-px h-6 bg-border/60 mx-1" />
+        <div className="w-px h-6 bg-[#1e40af]/40 mx-1" />
 
         {/* Orbit / walk */}
         <div className="flex items-center gap-0.5">
@@ -130,10 +130,10 @@ export default function Viewport({
                 key={mode.key}
                 onClick={() => onSetNavMode(mode.key)}
                 title={mode.label}
-                className={`p-2 rounded-md transition-colors ${
+                className={`p-2 border-2 transition-colors ${
                   active
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted'
+                    ? 'bg-[#3b82f6] text-white border-[#1e40af]'
+                    : 'text-[#5a6c80] border-transparent hover:bg-[#cbd5e1] hover:text-[#252525]'
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -142,7 +142,7 @@ export default function Viewport({
           })}
         </div>
 
-        <div className="w-px h-6 bg-border/60 mx-1" />
+        <div className="w-px h-6 bg-[#1e40af]/40 mx-1" />
 
         {/* Photoreal splat vs fast mesh. Hidden when the room has no splat — an older room,
             or one whose generation predates us storing the URL. */}
@@ -157,10 +157,10 @@ export default function Viewport({
                     key={mode.key}
                     onClick={() => onSetRoomMode(mode.key)}
                     title={mode.label}
-                    className={`p-2 rounded-md transition-colors ${
+                    className={`p-2 border-2 transition-colors ${
                       active
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:bg-muted'
+                        ? 'bg-[#3b82f6] text-white border-[#1e40af]'
+                        : 'text-[#5a6c80] border-transparent hover:bg-[#cbd5e1] hover:text-[#252525]'
                     }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -177,17 +177,17 @@ export default function Viewport({
                 title={splatQuality === 'high'
                   ? 'Full-resolution splat — switch back to the lighter one'
                   : 'Load the full-resolution splat (slower)'}
-                className={`px-2 py-1.5 rounded-md font-mono text-[10px] font-medium tracking-wider transition-colors ${
+                className={`px-2 py-1.5 border-2 font-heading text-[8px] transition-colors ${
                   splatQuality === 'high'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted'
+                    ? 'bg-[#3b82f6] text-white border-[#1e40af]'
+                    : 'text-[#5a6c80] border-transparent hover:bg-[#cbd5e1] hover:text-[#252525]'
                 }`}
               >
                 HD
               </button>
             )}
 
-            <div className="w-px h-6 bg-border/60 mx-1" />
+            <div className="w-px h-6 bg-[#1e40af]/40 mx-1" />
           </>
         )}
 
@@ -196,14 +196,14 @@ export default function Viewport({
           onClick={onUndo}
           disabled={!canUndo}
           title="Undo"
-          className="p-2 rounded-md text-muted-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="p-2 border-2 border-transparent text-[#5a6c80] hover:bg-[#cbd5e1] hover:text-[#252525] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <Undo2 className="w-4 h-4" />
         </button>
         <button
           onClick={onResetRoom}
           title="Reset room"
-          className="p-2 rounded-md text-muted-foreground hover:bg-destructive hover:text-destructive-foreground transition-colors"
+          className="p-2 border-2 border-transparent text-[#5a6c80] hover:bg-[#ef4444] hover:text-white transition-colors"
         >
           <RotateCcw className="w-4 h-4" />
         </button>
@@ -239,10 +239,10 @@ export default function Viewport({
           */}
           {!arranging && !pointerLocked && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="flex flex-col items-center gap-1 px-5 py-3 rounded-md bg-background/80 border border-border/60 shadow-sm text-center">
-                <MousePointerClick className="w-5 h-5 text-primary" />
-                <p className="font-body text-sm font-medium">Click the room to look around</p>
-                <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              <div className="flex flex-col items-center gap-2 px-5 py-4 bg-[#e2e8f0] border-2 border-[#1e40af] shadow-[3px_3px_0px_#1e40af] text-center">
+                <MousePointerClick className="w-5 h-5 text-[#3b82f6]" />
+                <p className="font-heading text-[10px] uppercase text-[#252525] leading-relaxed">Click the room to look around</p>
+                <p className="font-mono text-[11px] uppercase text-[#5a6c80]">
                   WASD to move · Esc to get the cursor back
                 </p>
               </div>
@@ -252,7 +252,7 @@ export default function Viewport({
           {/* Empty state — sits over the scene so the room is still visible behind it. */}
           {placedItems.length === 0 && (
             <div className="absolute inset-x-0 top-16 flex flex-col items-center text-center px-6 pointer-events-none">
-              <p className="font-body text-sm text-muted-foreground/70 max-w-xs bg-background/70 rounded px-3 py-2">
+              <p className="font-mono text-xs uppercase text-[#5a6c80] max-w-xs bg-[#e2e8f0] border-2 border-[#1e40af]/40 px-3 py-2">
                 Drag furniture from the catalog onto the room, or tap an item to place it.
               </p>
             </div>
@@ -282,8 +282,8 @@ export default function Viewport({
             {/* Left: scene list — clicking a small model in 3D is fiddly; this is reliable. */}
             <div className="flex-none flex justify-start">
               {placedItems.length > 0 && arranging && (
-                <div className="pointer-events-auto max-w-[220px] bg-card/90 rounded-md border border-border/60 shadow-sm overflow-hidden">
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-1.5 border-b border-border/40">
+                <div className="pointer-events-auto max-w-[220px] bg-[#e2e8f0] border-2 border-[#1e40af] shadow-[2px_2px_0px_#1e40af] overflow-hidden">
+                  <p className="font-heading text-[8px] uppercase text-[#1e40af] px-3 py-2 border-b-2 border-[#1e40af]/40">
                     Scene · {placedItems.length} {placedItems.length === 1 ? 'item' : 'items'}
                   </p>
                   <div className="max-h-[200px] overflow-y-auto">
@@ -293,19 +293,19 @@ export default function Viewport({
                         onClick={() => onSelectItem(item.id)}
                         className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${
                           selectedId === item.id
-                            ? 'bg-destructive/10'
-                            : 'hover:bg-muted'
+                            ? 'bg-[#3b82f6]/20'
+                            : 'hover:bg-[#cbd5e1]'
                         }`}
                       >
                         <span
-                          className={`w-1 h-6 rounded-full flex-shrink-0 ${
-                            selectedId === item.id ? 'bg-destructive' : 'bg-transparent'
+                          className={`w-1 h-6 flex-shrink-0 ${
+                            selectedId === item.id ? 'bg-[#3b82f6]' : 'bg-transparent'
                           }`}
                         />
-                        <span className="font-body text-xs font-medium truncate">
+                        <span className="font-mono text-xs truncate text-[#252525]">
                           {item.name}
                         </span>
-                        <span className="font-mono text-[10px] text-muted-foreground ml-auto">
+                        <span className="font-mono text-[10px] text-[#5a6c80] ml-auto">
                           {item.position.x.toFixed(1)},{item.position.z.toFixed(1)}
                         </span>
                       </button>
@@ -322,8 +322,13 @@ export default function Viewport({
               {/* Shrinkable and wrapping, not `whitespace-nowrap`: the orbit line is the
                   longest string in this row, and pinned at max-content it pushed straight
                   through the Done button on a narrow viewport. Wrapping is a worse-looking
-                  fallback than a single line and a much better one than an overlap. */}
-              <p className="max-w-full font-mono text-[10px] uppercase tracking-wider text-primary/90 bg-background/70 px-3 py-1 rounded text-center">
+                  fallback than a single line and a much better one than an overlap.
+
+                  Below `xl` it goes away entirely. The catalog rail and the inspector take a
+                  fixed ~580px between them, so at 1024 the viewport is barely 400px wide and
+                  this line — in a pixel face half again as wide as a normal mono — stacked
+                  seven rows deep over the room. Nothing overlapped; it just looked broken. */}
+              <p className="hidden xl:block max-w-full font-mono text-[11px] uppercase text-[#1e40af] bg-[#e2e8f0] border-2 border-[#1e40af]/40 px-3 py-1 text-center">
                 {arranging
                   ? 'Drag to orbit · Right-drag to pan · Scroll to zoom'
                   : pointerLocked
@@ -347,11 +352,11 @@ export default function Viewport({
               {selectedId && arranging && (
                 <button
                   onClick={() => onSelectItem(null)}
-                  className="pointer-events-auto inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground font-body text-sm font-medium shadow-sm hover:opacity-90 transition-opacity"
+                  className="pointer-events-auto inline-flex items-center gap-2 px-3 py-2 bg-[#5a6c80] text-white font-terminal text-base uppercase border-2 border-[#1e40af] shadow-[2px_2px_0px_#1e40af] hover:shadow-[1px_1px_0px_#1e40af] active:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-shadow"
                 >
                   <Check className="w-4 h-4" />
                   Done
-                  <span className="font-mono text-[10px] opacity-70 ml-0.5">ESC</span>
+                  <span className="font-mono text-[9px] opacity-70 ml-0.5">ESC</span>
                 </button>
               )}
             </div>

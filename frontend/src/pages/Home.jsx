@@ -50,25 +50,24 @@ export default function Home() {
       {/* Header row */}
       <div className="flex items-end justify-between mb-8">
         <div>
-          <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#252525]" style={{ fontFamily: '"Press Start 2P"' }}>
+          <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#252525]">
             YOUR ROOMS
           </h1>
-          <p className="text-muted-foreground text-sm mt-1 font-body text-[#5a6c80]" style={{ fontFamily: '"VT323"' }}>
+          <p className="text-muted-foreground text-sm mt-1 font-terminal text-[#5a6c80]">
             Scan a space, then furnish it in 3D.
           </p>
         </div>
         <button
           onClick={() => navigate('/upload')}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-none bg-[#3b82f6] text-white font-body text-sm font-medium hover:opacity-90 transition-opacity border-2 border-[#1e40af] shadow-[2px_2px_0px_#1e40af] hover:shadow-[1px_1px_0px_#1e40af] active:shadow-none active:translate-x-0.5 active:translate-y-0.5"
-          style={{ fontFamily: '"VT323"' }}
-        >
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-none bg-[#3b82f6] text-white font-terminal text-sm font-medium hover:opacity-90 transition-opacity border-2 border-[#1e40af] shadow-[2px_2px_0px_#1e40af] hover:shadow-[1px_1px_0px_#1e40af] active:shadow-none active:translate-x-0.5 active:translate-y-0.5"
+>
           <Plus className="w-4 h-4" />
           SCAN A ROOM
         </button>
       </div>
 
       {error && (
-        <p className="mb-6 text-sm text-destructive font-body" style={{ fontFamily: '"VT323"' }}>{error}</p>
+        <p className="mb-6 text-sm text-destructive font-terminal">{error}</p>
       )}
 
       {loading ? (
@@ -80,18 +79,17 @@ export default function Home() {
           <div className="w-16 h-16 rounded-none bg-[#e2e8f0] border-2 border-[#1e40af] flex items-center justify-center mb-5 shadow-[4px_4px_0px_#1e40af]">
             <Plus className="w-7 h-7 text-[#3b82f6]" />
           </div>
-          <h2 className="font-heading text-xl font-medium mb-2 text-[#252525]" style={{ fontFamily: '"Press Start 2P"' }}>
+          <h2 className="font-heading text-xl font-medium mb-2 text-[#252525]">
             NO ROOMS YET
           </h2>
-          <p className="text-muted-foreground text-sm max-w-sm font-body text-[#5a6c80] mb-6" style={{ fontFamily: '"VT323"' }}>
+          <p className="text-muted-foreground text-sm max-w-sm font-terminal text-[#5a6c80] mb-6">
             Upload a short video scan of a room and we'll turn it into an
             interactive 3D scene you can furnish.
           </p>
           <button
             onClick={() => navigate('/upload')}
-            className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-none bg-[#3b82f6] text-white font-body text-sm font-medium hover:opacity-90 transition-opacity border-2 border-[#1e40af] shadow-[2px_2px_0px_#1e40af] hover:shadow-[1px_1px_0px_#1e40af] active:shadow-none active:translate-x-0.5 active:translate-y-0.5"
-            style={{ fontFamily: '"VT323"' }}
-          >
+            className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-none bg-[#3b82f6] text-white font-terminal text-sm font-medium hover:opacity-90 transition-opacity border-2 border-[#1e40af] shadow-[2px_2px_0px_#1e40af] hover:shadow-[1px_1px_0px_#1e40af] active:shadow-none active:translate-x-0.5 active:translate-y-0.5"
+>
             SCAN YOUR FIRST ROOM
             <ArrowRight className="w-4 h-4" />
           </button>
@@ -115,12 +113,12 @@ export default function Home() {
                 </div>
                 <div className="p-4 bg-[#cbd5e1]">
                   <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <h3 className="font-heading text-base font-medium truncate text-[#252525]" style={{ fontFamily: '"Press Start 2P"' }}>
+                    <h3 className="font-heading text-base font-medium truncate text-[#252525]">
                       {room.name}
                     </h3>
                     <StatusBadge status={room.status} className="border-2 border-[#1e40af]" />
                   </div>
-                  <p className="text-xs text-[#5a6c80] font-mono" style={{ fontFamily: '"VT323"' }}>
+                  <p className="text-xs text-[#5a6c80] font-terminal">
                     edited {formatDate(room.updated_at || room.created_at)}
                   </p>
                 </div>
