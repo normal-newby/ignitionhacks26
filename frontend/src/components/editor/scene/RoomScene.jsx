@@ -1,7 +1,7 @@
 import { Suspense, Component, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { AdaptiveDpr, OrbitControls, TransformControls, useGLTF, useProgress } from '@react-three/drei';
-import { Plane, Raycaster, Vector2, Vector3 } from 'three';
+import { MOUSE, Plane, Raycaster, Vector2, Vector3 } from 'three';
 import RoomShell from './RoomShell';
 import RoomSplat from './RoomSplat';
 import PlacedModel from './PlacedModel';
@@ -310,7 +310,19 @@ export default function RoomScene({
 
                 {navMode === 'walk'
                     ? <WalkControls />
-                    : <OrbitControls makeDefault regress enableDamping dampingFactor={0.12} target={[0, 0.8, 0]} maxPolarAngle={Math.PI / 2 + 0.2} />}
+                    : (
+                        <OrbitControls
+                            makeDefault
+                            regress
+                            enableDamping
+                            dampingFactor={0.12}
+                            target={[0, 0.8, 0]}
+                            maxPolarAngle={Math.PI / 2 + 0.2}
+                            // Swapped from drei's default (left rotate, right pan): left click
+                            // moves across the room, right click orbits the view around it.
+                            mouseButtons={{ LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.ROTATE }}
+                        />
+                    )}
             </Canvas>
 
             <LoadingOverlay />
