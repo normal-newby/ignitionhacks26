@@ -15,12 +15,12 @@ export default function EditorTopBar({
   onExport,
 }) {
   return (
-    <div className="flex items-center justify-between px-4 h-14 border-b border-border/60 bg-card/80 backdrop-blur-sm">
+    <div className="flex items-center justify-between px-3 h-12 border-b-2 border-black bg-[#D4A76A] shadow-[0px_4px_0px_#000]">
       {/* Left: back + editable name */}
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-2 min-w-0">
         <Link
           to="/"
-          className="p-1.5 rounded-md hover:bg-muted transition-colors flex-shrink-0"
+          className="p-1 border-2 border-black hover:bg-[#9B4F3A] hover:text-[#F5E6C8] transition-colors flex-shrink-0 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
           title="Back to projects"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -29,26 +29,26 @@ export default function EditorTopBar({
           type="text"
           value={projectName}
           onChange={(e) => onRename(e.target.value)}
-          className="font-heading text-lg font-medium bg-transparent border-none focus:outline-none focus:ring-0 max-w-[280px] truncate"
+          className="font-mono text-md font-bold bg-transparent border-none focus:outline-none focus:ring-0 max-w-[240px] truncate text-black uppercase"
         />
       </div>
 
       {/* Center: save status */}
-      <div className="flex items-center gap-1.5 text-xs font-body text-muted-foreground">
+      <div className="flex items-center gap-1 text-xs font-mono text-black">
         {saveStatus === 'saving' ? (
           <>
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            <span>Saving…</span>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>SAVING…</span>
           </>
         ) : saveStatus === 'error' ? (
           <>
-            <AlertCircle className="w-3.5 h-3.5 text-destructive" />
-            <span className="text-destructive">Couldn't save</span>
+            <AlertCircle className="w-4 h-4 text-[#9B4F3A]" />
+            <span className="text-[#9B4F3A]">ERROR SAVING</span>
           </>
         ) : (
           <>
-            <Check className="w-3.5 h-3.5 text-secondary" />
-            <span>All changes saved</span>
+            <Check className="w-4 h-4 text-[#7C8B6F]" />
+            <span>ALL CHANGES SAVED</span>
           </>
         )}
       </div>
@@ -56,10 +56,10 @@ export default function EditorTopBar({
       {/* Right: export */}
       <button
         onClick={onExport}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-sm font-body hover:bg-muted transition-colors"
+        className="inline-flex items-center gap-1 px-2 py-1 border-2 border-black bg-[#EDE7DD] text-black font-mono text-xs font-bold hover:bg-[#9B4F3A] hover:text-[#F5E6C8] transition-colors active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
       >
         <Share2 className="w-3.5 h-3.5" />
-        Export view
+        EXPORT VIEW
       </button>
     </div>
   );
