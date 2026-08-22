@@ -13,7 +13,7 @@ export default function Layout() {
             <span className="font-heading text-xl font-semibold tracking-tight">Roomcast</span>
           </Link>
           <nav className="flex items-center gap-6 text-sm text-muted-foreground font-body">
-            <Link to="/" className="hover:text-foreground transition-colors">Projects</Link>
+            <Link to="/" className="hover:text-foreground transition-colors">Rooms</Link>
             <Link to="/catalog" className="hover:text-foreground transition-colors">Catalog</Link>
           </nav>
         </div>
