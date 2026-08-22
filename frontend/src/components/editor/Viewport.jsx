@@ -1,4 +1,4 @@
-import { Move, RotateCw, Maximize, Grid3x3, Undo2, RotateCcw, Orbit, Footprints } from 'lucide-react';
+import { Move, RotateCw, Maximize, Grid3x3, Undo2, RotateCcw, Orbit, Footprints, Check } from 'lucide-react';
 import Viewfinder from '@/components/Viewfinder';
 import RoomScene from './scene/RoomScene';
 
@@ -155,6 +155,21 @@ export default function Viewport({
               <p className="font-body text-sm text-muted-foreground/70 max-w-xs bg-background/70 backdrop-blur-sm rounded px-3 py-2">
                 Drag furniture from the catalog onto the room, or tap an item to place it.
               </p>
+            </div>
+          )}
+
+          {/* Done — the way out of the gizmo. Clicking empty space and Escape both work too,
+              but neither is discoverable while you're mid-drag with a piece selected. */}
+          {selectedId && arranging && (
+            <div className="absolute bottom-3 right-3">
+              <button
+                onClick={() => onSelectItem(null)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground font-body text-sm font-medium shadow-sm hover:opacity-90 transition-opacity"
+              >
+                <Check className="w-4 h-4" />
+                Done
+                <span className="font-mono text-[10px] opacity-70 ml-0.5">ESC</span>
+              </button>
             </div>
           )}
 

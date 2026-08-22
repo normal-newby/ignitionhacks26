@@ -207,7 +207,16 @@ Marble's frame gets mapped onto that, and why the mapping isn't the documented o
 - `RoomScene` — the Canvas: lights, controls, drop handling, and the one `TransformControls`
   gizmo, attached by object reference to whichever piece is selected. Models register their
   group in a ref map so the gizmo can find them.
-- `RoomShell` — the Marble scan. Not editable, and clicking it clears the selection.
+- `RoomShell` — the Marble scan. Not editable, and clicking it clears the selection. It
+  **replaces the material**, which is not optional: the mesh ships as bare geometry with
+  `COLOR_0` vertex colours, `materials: []` and no textures, so glTF hands it the spec's
+  default PBR material — **`metalness: 1`, `roughness: 1`, no environment map**. A fully
+  metallic surface with nothing to reflect has no diffuse response, so the room renders as
+  flat grey and every vertex colour in the file is thrown away. Swapping in a
+  `MeshBasicMaterial` with `vertexColors: true` is what makes it look like a room; measured on
+  the test scan that moves the frame from 0% to ~20% coloured pixels. Basic rather than
+  Standard because photogrammetry colour already has the room's lighting baked in — relighting
+  it would light it twice — and `toneMapped: false` for the same reason.
 - `PlacedModel` — one piece of furniture. Splits into a GLB branch and a placeholder-box
   branch rather than branching inside one component, because `useGLTF` can't be called
   conditionally. Catalog GLBs are measured and rescaled so their height matches the catalog
@@ -228,6 +237,18 @@ Two things that will silently break the room if disturbed:
 
 The mesh is ~5MB and takes a good few seconds; the loading percentage comes from drei's
 `useProgress`.
+
+**The collider mesh is low-poly by design** — 103k vertices / 206k triangles for a whole room,
+which is why the scan looks soft and blobby no matter what the material does. It's built for
+collision, not for looking at. The photoreal asset is the Gaussian splat under
+`assets.splats.spz_urls` (already stored as `splat_url` and exposed on `RoomResponse`), which
+would need an `.spz`-capable renderer — Spark, or converting to a format
+`@mkkellogg/gaussian-splats-3d` reads. That's a real addition, not a tweak; don't start it
+without agreeing the trade-off first.
+
+Selection has three ways out, because a gizmo you can't dismiss is a trap: the **Done** button
+in the viewport, the one in the inspector header, and **Escape**. Escape is orbit-only —
+while walking it belongs to the pointer lock, and stealing it would leave you captured.
 
 ## Commands
 

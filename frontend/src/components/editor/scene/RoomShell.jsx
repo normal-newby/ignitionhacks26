@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
-import { Box3 } from 'three';
+import { Box3, MeshBasicMaterial } from 'three';
 
 /**
  * The scanned room itself — Marble's collider mesh.
@@ -23,12 +23,36 @@ import { Box3 } from 'three';
  * concerned. Nothing here is editable: Marble's output is a single fused mesh with no
  * per-object structure to pull apart.
  */
+/**
+ * The scan arrives as bare geometry: `COLOR_0` vertex colours, `materials: []`, no textures.
+ * glTF gives a primitive with no material three's default MeshStandardMaterial, which has
+ * `vertexColors: false` — so every colour in the file is loaded and then ignored, and the room
+ * renders flat grey. Turning vertex colours on is what makes the scan look like the room.
+ *
+ * Basic rather than Standard because photogrammetry colour already has the room's real
+ * lighting baked into it; relighting it would be lighting it twice. Same reasoning for
+ * `toneMapped: false` — the Canvas tone-maps by default, which mutes colour that is already
+ * finished.
+ */
+function scanMaterial() {
+  return new MeshBasicMaterial({ vertexColors: true, toneMapped: false });
+}
+
 export default function RoomShell({ url, groundPlaneOffset = 0, metricScaleFactor = 1, onClick }) {
   const { scene } = useGLTF(url);
 
   // Cloned so React's reconciler owns an instance per mount; useGLTF caches the original and
-  // hands the same object to every caller.
-  const model = useMemo(() => scene.clone(true), [scene]);
+  // hands the same object to every caller. Assigning materials on the clone leaves the cached
+  // original alone.
+  const model = useMemo(() => {
+    const clone = scene.clone(true);
+    clone.traverse((object) => {
+      if (object.isMesh && object.geometry?.attributes?.color) {
+        object.material = scanMaterial();
+      }
+    });
+    return clone;
+  }, [scene]);
 
   const floorLift = useMemo(() => {
     // setFromObject walks node transforms, so this is the real world-space floor, not just

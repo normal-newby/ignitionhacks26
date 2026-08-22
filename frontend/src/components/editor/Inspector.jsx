@@ -1,4 +1,4 @@
-import { Trash2 } from 'lucide-react';
+import { Trash2, Check } from 'lucide-react';
 
 function NumberField({ label, value, onChange, step = 1, min, max }) {
   return (
@@ -23,19 +23,31 @@ function NumberField({ label, value, onChange, step = 1, min, max }) {
  * Right rail — inspector for the selected placed item.
  * Collapses to nothing when no item is selected.
  */
-export default function Inspector({ placedItem, onUpdate, onRemove }) {
+export default function Inspector({ placedItem, onUpdate, onRemove, onDone }) {
   if (!placedItem) return null;
 
   return (
     <div className="w-72 flex-shrink-0 border-l border-border/60 bg-card flex flex-col h-full animate-fade-in">
       {/* Header */}
-      <div className="p-4 border-b border-border/40">
-        <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-1">
-          {placedItem.category}
-        </p>
-        <h2 className="font-heading text-lg font-medium truncate">
-          {placedItem.name}
-        </h2>
+      <div className="p-4 border-b border-border/40 flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+            {placedItem.category}
+          </p>
+          <h2 className="font-heading text-lg font-medium truncate">
+            {placedItem.name}
+          </h2>
+        </div>
+        {/* Mirrors the viewport's Done button — this rail is where the eye is after typing
+            an exact position, so the way out needs to be here too. */}
+        <button
+          onClick={onDone}
+          title="Done (Esc)"
+          className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-primary text-primary-foreground font-body text-xs font-medium hover:opacity-90 transition-opacity"
+        >
+          <Check className="w-3.5 h-3.5" />
+          Done
+        </button>
       </div>
 
       {/* Editable fields */}

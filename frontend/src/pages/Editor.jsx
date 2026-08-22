@@ -202,6 +202,23 @@ export default function Editor() {
 
   const handleSelectItem = useCallback((id) => setSelectedId(id), []);
 
+  /**
+   * Escape drops the selection, which is the other half of the Done button. Only in orbit
+   * mode: while walking, Escape belongs to the pointer lock, and stealing it would leave you
+   * captured with no way out.
+   */
+  useEffect(() => {
+    if (navMode !== 'orbit') return undefined;
+
+    const onKeyDown = (e) => {
+      // Not while typing a position into the inspector.
+      if (e.key !== 'Escape' || e.target.tagName === 'INPUT') return;
+      setSelectedId(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [navMode]);
+
   /** Catalog lookup for the renderer, which sizes each model from its entry's dimensions. */
   const catalogById = useMemo(
     () => Object.fromEntries(catalog.map((c) => [c.id, c])),
@@ -372,6 +389,7 @@ export default function Editor() {
           placedItem={selectedItem}
           onUpdate={handleUpdateItem}
           onRemove={handleRemoveItem}
+          onDone={() => setSelectedId(null)}
         />
       </div>
     </div>
