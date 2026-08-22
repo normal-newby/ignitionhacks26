@@ -220,7 +220,7 @@ export default function CatalogAdmin() {
     <div className="max-w-5xl mx-auto px-6 py-10 animate-fade-in">
       <div className="flex items-end justify-between mb-8">
         <div>
-          <h1 className="font-heading text-3xl font-semibold tracking-tight">Catalog admin</h1>
+          <h1 className="font-heading text-3xl font-semibold tracking-tight">Catalog</h1>
           <p className="text-muted-foreground text-sm mt-1 font-body">
             Manage the furniture pieces available in the editor.
           </p>

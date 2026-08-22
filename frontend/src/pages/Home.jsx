@@ -51,10 +51,10 @@ export default function Home() {
       <div className="flex items-end justify-between mb-8">
         <div>
           <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#252525]" style={{ fontFamily: '"Press Start 2P"' }}>
-            YOUR ROOMS
+            UPLOADED ROOMS
           </h1>
           <p className="text-muted-foreground text-sm mt-1 font-body text-[#5a6c80]" style={{ fontFamily: '"VT323"' }}>
-            Scan a space, then furnish it in 3D.
+            Upload a video and bring it to life
           </p>
         </div>
         <button
@@ -63,7 +63,7 @@ export default function Home() {
           style={{ fontFamily: '"VT323"' }}
         >
           <Plus className="w-4 h-4" />
-          SCAN A ROOM
+          UPLOAD
         </button>
       </div>
 
