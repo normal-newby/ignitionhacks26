@@ -48,51 +48,28 @@ const SECONDARY_BUTTON =
 /**
  * A flat pixel plan of a furnished room, drawn rather than photographed.
  *
- * A screenshot would be the honest thing to show, but the editor needs a finished scan to
- * produce one and this page has to render before anyone has made one. So: an obvious diagram,
- * in the palette, that doesn't pretend to be a render.
+ * Demo video showing the RoomCast 3D scanning and virtual staging workflow.
+ * Plays automatically on loop to showcase the application's capabilities.
  */
-function RoomDiagram() {
+function DemoVideo() {
   return (
-    <svg viewBox="0 0 320 220" className="w-full h-auto" role="img"
-         aria-label="Pixel diagram of a room plan with furniture placed in it">
-      <rect x="0" y="0" width="320" height="220" fill="#cbd5e1" />
-
-      {/* Floor grid — one square reads as roughly half a metre. */}
-      <g stroke="#94a3b8" strokeWidth="1">
-        {Array.from({ length: 15 }, (_, i) => (
-          <line key={`v${i}`} x1={20 * (i + 1)} y1="0" x2={20 * (i + 1)} y2="220" />
-        ))}
-        {Array.from({ length: 10 }, (_, i) => (
-          <line key={`h${i}`} x1="0" y1={20 * (i + 1)} x2="320" y2={20 * (i + 1)} />
-        ))}
-      </g>
-
-      {/* Walls, with a gap for the doorway on the right. */}
-      <g fill="#1e40af">
-        <rect x="20" y="20" width="280" height="8" />
-        <rect x="20" y="20" width="8" height="180" />
-        <rect x="20" y="192" width="280" height="8" />
-        <rect x="292" y="20" width="8" height="70" />
-        <rect x="292" y="140" width="8" height="60" />
-      </g>
-
-      {/* Furniture. Blue is placed-and-selected, grey is placed. */}
-      <g stroke="#1e40af" strokeWidth="3">
-        <rect x="48" y="48" width="96" height="40" fill="#3b82f6" />
-        <rect x="60" y="108" width="72" height="36" fill="#5a6c80" />
-        <rect x="188" y="48" width="40" height="40" fill="#5a6c80" />
-        <rect x="196" y="128" width="72" height="48" fill="#5a6c80" />
-        <rect x="248" y="44" width="24" height="24" fill="#10b981" />
-      </g>
-
-      {/* Selection ticks on the blue piece, the way the editor marks the active item. */}
-      <g fill="#ef4444">
-        {[[44, 44], [140, 44], [44, 84], [140, 84]].map(([x, y]) => (
-          <rect key={`${x}-${y}`} x={x} y={y} width="8" height="8" />
-        ))}
-      </g>
-    </svg>
+    <div className="w-full h-auto relative">
+      <video
+        className="w-full h-auto border-2 border-[#1e40af]"
+        autoPlay
+        loop
+        muted
+        playsInline
+        controls={false}
+        aria-label="Demo video showing RoomCast 3D room scanning and virtual staging"
+      >
+        <source src="/demoVideo.mp4" type="video/mp4" />
+        Your browser does not support the video tag.
+      </video>
+      <div className="absolute bottom-2 right-2 bg-[#1e40af] text-white px-2 py-1 text-[10px] font-mono">
+        Demo Video
+      </div>
+    </div>
   );
 }
 
@@ -158,12 +135,12 @@ export default function Landing() {
             </div>
 
             <div className={`${PANEL} p-3`}>
-              <RoomDiagram />
+              <DemoVideo />
               <div className="flex items-center justify-between px-1 pt-3">
                 <span className="font-heading text-[8px] uppercase text-[#1e40af]">
-                  Living room
+                  RoomCast Demo
                 </span>
-                <span className="font-mono text-[10px] text-[#5a6c80]">5 pieces placed</span>
+                <span className="font-mono text-[10px] text-[#5a6c80]">3D Scanning & Staging</span>
               </div>
             </div>
           </div>
