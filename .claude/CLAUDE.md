@@ -252,7 +252,13 @@ Marble's frame gets mapped onto that, and why the mapping isn't the documented o
   gizmo, attached by object reference to whichever piece is selected. Models register their
   group in a ref map so the gizmo can find them.
 - `RoomSplat` — the photoreal room, Marble's Gaussian splat rendered with Spark. See below.
-- `RoomShell` — the Marble scan. Not editable, and clicking it clears the selection. It
+- `RoomShell` — the Marble scan. Not editable, and clicking it clears the selection — but it
+  carries **no event handler of its own**, deliberately. r3f only raycasts objects that have
+  handlers, so a handler here put 206k triangles into every click test, and the shell's
+  bounding sphere wraps the whole room so three's cheap early-out never fired. Without one a
+  click on the room is a miss and the Canvas's `onPointerMissed` clears the selection, which
+  is what the handler did. It also inherits that path's 2px movement threshold, so an orbit
+  drag ending on a wall no longer deselects the piece being arranged. It
   **replaces the material**, which is not optional: the mesh ships as bare geometry with
   `COLOR_0` vertex colours, `materials: []` and no textures, so glTF hands it the spec's
   default PBR material — **`metalness: 1`, `roughness: 1`, no environment map**. A fully
@@ -289,8 +295,8 @@ photoreal alternative, Marble's 500k-splat `.spz`, via Spark (`@sparkjsdev/spark
 toolbar switches between them; splat is the default and mesh is the escape hatch for a machine
 that can't keep up.
 
-**The mesh renders in both modes.** It's what a click on empty space hits to clear the
-selection, and the fallback when a splat won't load; under the splat it just isn't visible.
+**The mesh renders in both modes**, as the fallback when a splat won't load; under the splat
+it just isn't visible. It is *not* what clears the selection — see `RoomShell` above.
 
 Facts about the splat path, each measured against a real scan rather than assumed:
 
@@ -311,6 +317,18 @@ Facts about the splat path, each measured against a real scan rather than assume
 - **The floor is the densest 10cm band *above* the median, not the densest band overall.**
   The test scan's ceiling holds 168k splats to the floor's 62k, so "densest band" alone finds
   the ceiling. Bounds are no better: floaters push the box to y=10.2 in a 2.75m room.
+- **That search reads `packedSplats.packedArray` directly and bins in one pass.** It used to
+  collect every height into an array and sort it; at the full_res tier that was **1038ms of
+  blocked main thread, now 18ms** — the single most expensive thing on the HD load path.
+  Two reasons it was slow, and both had to go: `forEachSplat` fully unpacks each splat before
+  handing it over (three `Math.exp` for the scales, an octahedral quaternion decode, a colour)
+  when only the centre's y is wanted, and sorting ~2M floats to read the median off the middle
+  is far more work than binning them. The centre's y is the top 16 bits of word 1 of each
+  4-word splat, decoded through a 65536-entry half-float table; **verified bit-exact against
+  Spark's own `forEachSplat` across all 494k splats of a test cloud** (`maxYDiff = 0`), and
+  both algorithms return the same floor. `packedArray`/`numSplats` are public on Spark's
+  `PackedSplats` and are never freed after the GPU upload, but the `forEachSplat` path is kept
+  as a fallback in case a future Spark changes that.
 - **Detail tiers.** `splat_url` is Marble's 500k tier (7.6MB) and the default; the HD button
   swaps in `splat_url_full_res` (27.9MB, 1.92M splats). Both land the floor at y=0 and the
   ceiling at 2.661m on the test scan, so toggling doesn't move the room. `RoomScene` keys the
@@ -319,6 +337,37 @@ Facts about the splat path, each measured against a real scan rather than assume
 - **Splats and furniture occlude each other correctly.** Verified both ways: a box inside the
   room draws over the splat, a box behind a wall is fully hidden by it. No render-order work
   needed.
+- **`antialias: false` on the Canvas is required, not a preference.** Spark's own docs say
+  MSAA "doesn't improve Gaussian Splatting rendering and significantly reduces performance" —
+  splats are soft-edged already. r3f defaults it to true, so it has to be turned off
+  explicitly. It costs a little crispness on furniture edges; that's the trade.
+- **`SparkRenderer` is tuned on two axes**, both of which a 1.9M-splat room is bound by.
+  `maxStdDev: Math.sqrt(5)` (Spark documents sqrt(5)..sqrt(8) as the usable range, default
+  sqrt(8)) makes each splat quad ~21% narrower, so ~37% fewer shaded pixels. `sortDistance:
+  0.05` is how far the camera may travel before a full back-to-front re-sort; the 0.01m
+  default re-sorts on essentially every frame of an orbit, and 5cm of parallax across a 3m
+  room reorders nothing visible.
+
+Render resolution is the other dial, and the one that reliably buys frames on a fill-rate-bound
+splat: `performance={{ min: 0.6 }}` on the Canvas, `<AdaptiveDpr/>` inside it, and `regress` on
+`OrbitControls` together drop to 60% resolution while the camera moves and restore full
+resolution once it settles.
+
+Two React-side costs worth keeping down, because the gizmo commits a transform on **every mouse
+move** of a drag and each commit replaces `placedItems` upstream:
+
+- `PlacedModel` and `CatalogPanel` are both `memo`'d. Without it, every piece in the room and
+  every card in the rail reconciled 60 times a second while one item was being dragged.
+  `CatalogPanel`'s props only stay stable because `pushHistory` reads `placedItemsRef` instead
+  of closing over `placedItems` — restore that dependency and the memo silently stops working.
+- The load percentage lives in its own `LoadingOverlay` component. Read from `RoomScene`,
+  `useProgress` re-rendered the whole scene graph on every progress tick, during exactly the
+  stretch where the main thread is busiest.
+
+The overlays sitting on top of the canvas carry no `backdrop-blur`. `backdrop-filter` over a
+WebGL canvas makes the compositor re-blur that region every frame the canvas draws — every
+frame, in a walkthrough — and at `bg-card/90` it was blurring the 10% of backdrop that showed
+through.
 
 Both paths import `three` as a bare specifier so Vite dedupes them to one instance. Reaching
 past that — importing `three/build/three.module.js` directly, say — gives Spark a second copy

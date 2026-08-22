@@ -86,6 +86,14 @@ export default function Editor() {
   const [catalogLoading, setCatalogLoading] = useState(true);
 
   const historyRef = useRef([]);
+  /**
+   * The live layout, readable from a callback without making that callback depend on it.
+   * The gizmo commits a transform on every mouse move, so `placedItems` changes ~60 times a
+   * second while dragging; anything that closes over it is rebuilt just as often, and every
+   * memoised child taking one of those callbacks re-renders along with it.
+   */
+  const placedItemsRef = useRef(placedItems);
+  placedItemsRef.current = placedItems;
   // One pending timer per model id, so dragging two things doesn't cancel one of the saves.
   const pendingSavesRef = useRef(new Map());
   const renameTimerRef = useRef(null);
@@ -164,9 +172,9 @@ export default function Editor() {
 
   const pushHistory = useCallback(() => {
     historyRef.current.push(
-      placedItems.map((p) => ({ ...p, position: { ...p.position } }))
+      placedItemsRef.current.map((p) => ({ ...p, position: { ...p.position } }))
     );
-  }, [placedItems]);
+  }, []);
 
   /* ---------------- mutations ---------------- */
 
@@ -202,7 +210,7 @@ export default function Editor() {
         setSelectedId(ui.id);
       });
     },
-    [projectId, room, catalog, pushHistory, runSave]
+    [projectId, catalog, pushHistory, runSave]
   );
 
   const handleSelectItem = useCallback((id) => setSelectedId(id), []);
@@ -270,13 +278,15 @@ export default function Editor() {
   );
 
   const handleResetRoom = useCallback(async () => {
-    if (placedItems.length === 0) return;
+    if (placedItemsRef.current.length === 0) return;
     pushHistory();
     setPlacedItems([]);
     setSelectedId(null);
     spawnCountRef.current = 0;
     await runSave(() => clearModels(projectId));
-  }, [projectId, placedItems.length, pushHistory, runSave]);
+  }, [projectId, pushHistory, runSave]);
+
+  const handleToggleGridSnap = useCallback(() => setGridSnap((v) => !v), []);
 
   /**
    * Undo replays a snapshot against the server by diffing it with what's there now: drop
@@ -387,7 +397,7 @@ export default function Editor() {
           onSetNavMode={setNavMode}
           onSetRoomMode={setRoomMode}
           onSetSplatQuality={setSplatQuality}
-          onToggleGridSnap={() => setGridSnap((v) => !v)}
+          onToggleGridSnap={handleToggleGridSnap}
           onUndo={handleUndo}
           onResetRoom={handleResetRoom}
           onSelectItem={handleSelectItem}

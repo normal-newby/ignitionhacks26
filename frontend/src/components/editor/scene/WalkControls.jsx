@@ -10,6 +10,14 @@ const SPRINT_MULTIPLIER = 2.2;
 /** Standing eye height, in the metric scene RoomShell sets up. */
 export const EYE_HEIGHT = 1.6;
 
+/**
+ * Scratch vectors. Walking allocated three of these every frame, which is 180 short-lived
+ * Vector3s a second handed to the GC during the one mode where the frame budget is tightest.
+ */
+const _forward = new Vector3();
+const _right = new Vector3();
+const _move = new Vector3();
+
 const BINDINGS = {
     KeyW: 'forward', ArrowUp: 'forward',
     KeyS: 'back', ArrowDown: 'back',
@@ -70,24 +78,23 @@ export default function WalkControls() {
             return;
         }
 
-        const forward = new Vector3();
-        camera.getWorldDirection(forward);
+        camera.getWorldDirection(_forward);
         // Flattened so looking at the floor doesn't drive you into it.
-        forward.y = 0;
-        forward.normalize();
+        _forward.y = 0;
+        _forward.normalize();
 
-        const right = new Vector3().crossVectors(forward, camera.up).normalize();
-        const move = new Vector3();
+        _right.crossVectors(_forward, camera.up).normalize();
+        _move.set(0, 0, 0);
 
-        if (keys.has('forward')) move.add(forward);
-        if (keys.has('back')) move.sub(forward);
-        if (keys.has('right')) move.add(right);
-        if (keys.has('left')) move.sub(right);
+        if (keys.has('forward')) _move.add(_forward);
+        if (keys.has('back')) _move.sub(_forward);
+        if (keys.has('right')) _move.add(_right);
+        if (keys.has('left')) _move.sub(_right);
 
-        if (move.lengthSq() > 0) {
+        if (_move.lengthSq() > 0) {
             // Normalised so diagonals aren't faster than the cardinals.
-            move.normalize().multiplyScalar(SPEED * (sprinting.current ? SPRINT_MULTIPLIER : 1) * delta);
-            camera.position.add(move);
+            _move.normalize().multiplyScalar(SPEED * (sprinting.current ? SPRINT_MULTIPLIER : 1) * delta);
+            camera.position.add(_move);
         }
         camera.position.y = EYE_HEIGHT;
     });

@@ -54,8 +54,12 @@ export default function Viewport({
 
   return (
     <div className="flex-1 relative flex flex-col bg-background min-w-0">
-      {/* Toolbar overlay */}
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-card/90 backdrop-blur-sm rounded-lg border border-border/60 p-1 shadow-sm">
+      {/* Toolbar overlay.
+          No backdrop-blur here or on the scene list below, on purpose: backdrop-filter over a
+          WebGL canvas makes the compositor re-blur that region every frame the canvas draws,
+          which in a walkthrough is every frame. At 90% opacity the blur was working on the
+          10% of backdrop that shows through, so it cost real frames and looked the same. */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-card/90 rounded-lg border border-border/60 p-1 shadow-sm">
         {/* Transform mode toggles */}
         <div className="flex items-center gap-0.5">
           {TRANSFORM_MODES.map((mode) => {
@@ -239,7 +243,7 @@ export default function Viewport({
           {/* Scene list — clicking a small model in 3D is fiddly; this is the reliable way. */}
           {placedItems.length > 0 && arranging && (
             <div className="absolute bottom-3 left-3 max-w-[220px]">
-              <div className="bg-card/90 backdrop-blur-sm rounded-md border border-border/60 shadow-sm overflow-hidden">
+              <div className="bg-card/90 rounded-md border border-border/60 shadow-sm overflow-hidden">
                 <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70 px-3 py-1.5 border-b border-border/40">
                   Scene · {placedItems.length} {placedItems.length === 1 ? 'item' : 'items'}
                 </p>

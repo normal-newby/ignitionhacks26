@@ -1,6 +1,6 @@
 import { Suspense, Component, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
-import { OrbitControls, TransformControls, useGLTF, useProgress } from '@react-three/drei';
+import { AdaptiveDpr, OrbitControls, TransformControls, useGLTF, useProgress } from '@react-three/drei';
 import { Plane, Raycaster, Vector2, Vector3 } from 'three';
 import RoomShell from './RoomShell';
 import RoomSplat from './RoomSplat';
@@ -51,6 +51,26 @@ function CameraRig({ mode }) {
 }
 
 /**
+ * The load progress readout.
+ *
+ * Its own component because `useProgress` fires many times a second while a 5MB mesh and a
+ * 28MB splat come down. Read from RoomScene, every one of those ticks would re-render the
+ * whole scene graph during the exact stretch where the main thread is busiest.
+ */
+function LoadingOverlay() {
+    const { active, progress } = useProgress();
+    if (!active) return null;
+
+    return (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-background/40 backdrop-blur-[1px]">
+            <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+                Loading room · {Math.round(progress)}%
+            </p>
+        </div>
+    );
+}
+
+/**
  * A single bad GLB shouldn't blank the room. Suspense propagates a load failure all the way
  * up and unmounts the whole subtree, so each model gets its own boundary and simply goes
  * missing if its file won't load.
@@ -96,7 +116,9 @@ export default function RoomScene({
     const registry = useRef(new Map());
     const [, bumpRegistry] = useState(0);
     const [dragOver, setDragOver] = useState(false);
-    const { active: loading, progress } = useProgress();
+    // Whether the splat has finished loading and is actually covering the room. Drives whether
+    // the collider mesh underneath still needs drawing.
+    const [splatReady, setSplatReady] = useState(false);
 
     const register = useCallback((id, object) => {
         if (object) {
@@ -188,12 +210,34 @@ export default function RoomScene({
             onDrop={handleDrop}
         >
             <Canvas
-                camera={{ position: ORBIT_CAMERA, fov: 55, near: 0.05, far: 500 }}
-                dpr={[1, 2]}
+                // far was 500 for a room that's 3m across. A 0.05..500 depth range spends
+                // almost all of its precision on empty space and leaves furniture standing on
+                // the floor fighting over the same depth values.
+                camera={{ position: ORBIT_CAMERA, fov: 55, near: 0.05, far: 100 }}
+                // Capped at 1.5, not the display's full ratio. Splat rendering is fill-rate
+                // bound, so this is the single biggest dial in the scene: a 2x display renders
+                // four times the pixels of a 1x one for a room that is already soft-edged.
+                // First thing to turn back up if a machine has frames to spare.
+                dpr={[1, 1.5]}
+                gl={{
+                    // Spark's own guidance: MSAA does nothing for a Gaussian splat — the
+                    // splats are soft-edged already — and costs a great deal of fill rate,
+                    // which is exactly what the splat path is short of.
+                    antialias: false,
+                    // Without this a dual-GPU laptop hands WebGL to the integrated chip.
+                    powerPreference: 'high-performance',
+                }}
+                // Paired with <AdaptiveDpr/> below and `regress` on the controls: while the
+                // camera is moving the scene renders at 75% resolution and goes back to full
+                // once it settles. Nobody reads fine detail mid-orbit. 0.75 rather than the
+                // more usual 0.5 because the dpr cap above already cut resolution once, and
+                // stacking both drops is more softness than the frames are worth.
+                performance={{ min: 0.75 }}
                 onPointerMissed={() => navMode === 'orbit' && onSelectItem(null)}
             >
                 <Bridge handle={handle} />
                 <CameraRig mode={navMode} />
+                <AdaptiveDpr />
 
                 {/* Marble bakes lighting into the scan, so this is mostly here for the
                     furniture sitting on top of it. */}
@@ -202,17 +246,29 @@ export default function RoomScene({
                 <directionalLight position={[4, 8, 4]} intensity={1.3} />
 
                 <Suspense fallback={null}>
-                    {/* The splat is the photoreal room; the mesh is the fast, clickable one.
-                        The mesh renders underneath either way — it's what a click on empty
-                        space hits to clear the selection, and it's the fallback if the splat
-                        can't load. Under the splat it's simply not visible. */}
+                    {/* The splat is the photoreal room; the mesh is the fast one and the
+                        fallback if the splat can't load. The mesh stays mounted in both modes
+                        but stops drawing once the splat is actually up — see `visible` below.
+
+                        No click handler on the shell, deliberately. r3f only raycasts objects
+                        that carry handlers, so giving the shell one put 206k triangles into
+                        every click test — and its bounding sphere wraps the whole room, so the
+                        cheap early-out never fires and all 206k get walked. Without one, a
+                        click on the room is a miss and `onPointerMissed` above clears the
+                        selection, which is what the handler did anyway. It also picks up that
+                        guard's 2px movement threshold, so an orbit drag that happens to end on
+                        a wall no longer deselects the piece you were arranging. */}
                     {room?.collider_mesh_url && (
                         <ModelBoundary>
                             <RoomShell
                                 url={room.collider_mesh_url}
                                 groundPlaneOffset={room.ground_plane_offset ?? 0}
                                 metricScaleFactor={room.metric_scale_factor ?? 1}
-                                onClick={() => navMode === 'orbit' && onSelectItem(null)}
+                                // Hidden, not unmounted, once the splat is actually up: 206k
+                                // triangles and a screenful of overdraw per frame, entirely
+                                // behind an opaque splat. It stays loaded so dropping back to
+                                // mesh mode — or a splat that fails — is instant.
+                                visible={!(roomMode === 'splat' && splatReady)}
                             />
                         </ModelBoundary>
                     )}
@@ -222,7 +278,7 @@ export default function RoomScene({
                         // builds the new one, rather than trying to swap a URL underneath a
                         // half-gigabyte of GPU buffers.
                         <ModelBoundary key={splatUrl}>
-                            <RoomSplat url={splatUrl} />
+                            <RoomSplat url={splatUrl} onReady={setSplatReady} />
                         </ModelBoundary>
                     )}
 
@@ -254,16 +310,10 @@ export default function RoomScene({
 
                 {navMode === 'walk'
                     ? <WalkControls />
-                    : <OrbitControls makeDefault enableDamping dampingFactor={0.12} target={[0, 0.8, 0]} maxPolarAngle={Math.PI / 2 + 0.2} />}
+                    : <OrbitControls makeDefault regress enableDamping dampingFactor={0.12} target={[0, 0.8, 0]} maxPolarAngle={Math.PI / 2 + 0.2} />}
             </Canvas>
 
-            {loading && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-background/40 backdrop-blur-[1px]">
-                    <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-                        Loading room · {Math.round(progress)}%
-                    </p>
-                </div>
-            )}
+            <LoadingOverlay />
 
             {navMode === 'walk' && (
                 <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-none">

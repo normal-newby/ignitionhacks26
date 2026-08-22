@@ -25,8 +25,12 @@ import { Box3, MeshBasicMaterial } from 'three';
  * with no usable bounds.
  *
  * Clicking the shell clears the selection — it's empty space as far as the editor is
- * concerned. Nothing here is editable: Marble's output is a single fused mesh with no
- * per-object structure to pull apart.
+ * concerned. That's handled by the Canvas's `onPointerMissed` rather than a handler here, on
+ * purpose: r3f only raycasts objects carrying event handlers, and a handler here would put
+ * 206k triangles into every click test. See RoomScene for the full note.
+ *
+ * Nothing here is editable: Marble's output is a single fused mesh with no per-object
+ * structure to pull apart.
  */
 /**
  * The scan arrives as bare geometry: `COLOR_0` vertex colours, `materials: []`, no textures.
@@ -43,7 +47,7 @@ function scanMaterial() {
   return new MeshBasicMaterial({ vertexColors: true, toneMapped: false });
 }
 
-export default function RoomShell({ url, groundPlaneOffset = 0, metricScaleFactor = 1, onClick }) {
+export default function RoomShell({ url, groundPlaneOffset = 0, metricScaleFactor = 1, visible = true }) {
   const { scene } = useGLTF(url);
 
   // Cloned so React's reconciler owns an instance per mount; useGLTF caches the original and
@@ -75,7 +79,9 @@ export default function RoomShell({ url, groundPlaneOffset = 0, metricScaleFacto
       scale={metricScaleFactor}
       rotation={[Math.PI, 0, 0]}
       position={[0, floorLift, 0]}
-      onClick={onClick}
+      // Stays mounted but stops drawing once the splat covers it — see RoomScene. It's still
+      // loaded and one prop away from being the visible room again if the splat goes.
+      visible={visible}
     />
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
 import Thumbnail from '@/components/Thumbnail';
 import { CATEGORIES } from '@/api/catalog';
@@ -9,8 +9,13 @@ import { CATEGORIES } from '@/api/catalog';
  *
  * Items are passed in rather than fetched here: the editor needs the same list to resolve a
  * card into a placed model, so one load upstream serves both.
+ *
+ * Memoised, and its three props are all stable once the catalog has loaded. Dragging a piece
+ * of furniture around the viewport sets state on the editor on every mouse move; without this
+ * the whole rail — every card, every thumbnail — re-rendered on each of those, for a list that
+ * hadn't changed since page load.
  */
-export default function CatalogPanel({ items = [], loading = false, onAdd }) {
+function CatalogPanel({ items = [], loading = false, onAdd }) {
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const categories = ['All', ...CATEGORIES];
@@ -136,3 +141,5 @@ export default function CatalogPanel({ items = [], loading = false, onAdd }) {
     </div>
   );
 }
+
+export default memo(CatalogPanel);
