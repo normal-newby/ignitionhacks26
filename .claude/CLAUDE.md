@@ -113,17 +113,25 @@ the starter without meaning to.
   The null check in `RoomService.ownedBy` is what makes that true rather than the opposite; a
   null owner matching every user would show everyone's rooms to everyone.
 - **The catalog has three kinds of row, and the difference is entirely the owner column.**
-  Seeded entries have no owner and are always public — anyone signed in can edit them, because
-  attaching their GLBs is shared setup work. Uploads belong to their uploader; `is_public`
-  decides whether anyone else sees them at all. Making a piece public lets others *place* it,
-  never rename or delete it. Edits to someone else's piece are 403.
+  Built-in entries have no owner, are always public, and are **read-only to everyone** — they
+  ship with the app and every account's rail is built on them, so one person renaming or
+  deleting one would change what everybody else sees. Uploads belong to their uploader;
+  `is_public` decides whether anyone else sees them at all. Making a piece public lets others
+  *place* it, never rename or delete it. Both refusals are 403, with different messages,
+  because "that's not yours" and "that's nobody's" are different situations.
+
+  Built-ins were editable by anyone up to Aug 2026, on the reasoning that attaching their GLBs
+  was shared setup work. That work is finished — all 16 have models — and the reasoning expired
+  with it. **Nothing in the UI can attach a GLB to a built-in row now**; a new one has to come
+  from `CatalogSeeder` or the database.
 - `CatalogItemResponse` computes **`mine`, `editable` and `built_in` per request**, not from
-  storage. `mine` and `editable` are different questions: a built-in entry is editable by
-  anyone but is nobody's, so it is not `mine` and doesn't appear under the catalog's "Mine"
-  filter. `editable` exists so that rule lives in one place — the frontend used to derive it as
-  `mine || built_in` and **got it wrong on rows with no owner and a false `built_in` column**,
-  which is what a database predating the seeder's flag is full of. `CatalogAdmin.canEdit` now
-  just reads `item.editable`; don't re-derive it.
+  storage. `editable` currently equals `mine`, and is still a separate field on purpose: "did I
+  upload it" and "may I change it" are different questions that have already diverged once, so
+  keeping them apart makes a future rule change one line in `requireEditable` plus one in the
+  DTO, with no frontend edit. That's also why the frontend must not re-derive it — it used to
+  compute `mine || built_in` and **got it wrong on rows with no owner and a false `built_in`
+  column**, which is what a database predating the seeder's flag is full of.
+  `CatalogAdmin.canEdit` just reads `item.editable`.
 - For the same reason `built_in` on the *response* means "has no owner", not the value of the
   stored column. "Belongs to the app" is what the UI needs and what the permission check keys
   off; the stored flag is only ever true for rows the seeder wrote.
@@ -349,6 +357,13 @@ export handler at all, so re-adding the button means writing one first.
 - `Layout` is signed-in chrome only, rendered inside `RequireAuth`, so `user` is always set
   there and the account chip needs no fallback. `Landing` carries its own header because its
   destinations are different.
+- **Two catalog surfaces, both with search + category filter, and they are not the same
+  component.** `CatalogPanel` is the editor's rail (drag a card into the room);
+  `CatalogAdmin` is the `/catalog` page (a table, plus the owner filter and the upload form).
+  They filter the same server list independently — don't try to share the filter state. On the
+  admin page the three filters compose, and the owner tab counts come off the *searched* list
+  rather than the whole catalog, so a tab reading 0 means "nothing here matches what you typed"
+  instead of contradicting the rows on screen.
 - `Editor.jsx` owns the catalog fetch and passes the list into `CatalogPanel` as a prop,
   because adding an item needs the same list to resolve a catalog id into the name, category
   and model URL it snapshots onto the placed model.

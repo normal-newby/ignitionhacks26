@@ -19,8 +19,8 @@ import java.util.UUID;
  * <p>Three kinds of entry share one table, and the difference is entirely in the owner column:
  *
  * <ul>
- *   <li><b>Seeded</b> — no owner, always public. They belong to the app, and attaching their
- *       GLBs is shared setup work, so anyone signed in can edit them.
+ *   <li><b>Built-in</b> — no owner, always public, <b>read-only to everyone</b>. They ship with
+ *       the app and every account's rail is built on them, so nobody edits or deletes them.
  *   <li><b>Shared uploads</b> — an owner and {@code isPublic}. Everyone can place them; only
  *       the uploader can change or delete them.
  *   <li><b>Private uploads</b> — an owner and nothing else. Only the uploader sees them at all.
@@ -166,13 +166,24 @@ public class CatalogService {
     /* ------------------------------------------------------------------ */
 
     /**
-     * Anyone may edit a seeded entry — they're the app's, and someone has to be able to attach
-     * their GLBs. An uploaded piece belongs to whoever uploaded it, whether or not they shared
-     * it: making a piece public lets others place it, not rename or delete it.
+     * You may edit exactly what you uploaded, and nothing else.
+     *
+     * <p>Two ways to fail, with different messages because they're different situations. A
+     * built-in piece has no owner and is now locked to everyone: it ships with the app, every
+     * account's rail is built on it, and one person renaming "Beige Sofa" or deleting it would
+     * change what everyone else sees. An uploaded piece belongs to whoever uploaded it whether
+     * or not they shared it — making a piece public lets others place it, not rename it.
+     *
+     * <p>This used to let anyone edit a built-in entry, on the reasoning that attaching their
+     * GLBs was shared setup work. That work is done; the reasoning expired with it.
      */
     private static void requireEditable(UserEntity user, CatalogItemEntity item) {
         UserEntity owner = item.getOwner();
-        if (owner != null && !owner.getId().equals(user.getId())) {
+        if (owner == null) {
+            throw new AccessDeniedException(
+                    "Built-in catalog pieces can't be changed. Upload your own to edit it.");
+        }
+        if (!owner.getId().equals(user.getId())) {
             throw new AccessDeniedException("That catalog piece belongs to someone else.");
         }
     }

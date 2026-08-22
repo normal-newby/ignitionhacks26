@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  Plus, Trash2, Pencil, Check, X, Loader2, Box, AlertCircle, Sparkles, Globe, Lock,
+  Plus, Trash2, Pencil, Check, X, Loader2, Box, AlertCircle, Sparkles, Globe, Lock, Search,
 } from 'lucide-react';
 import {
   CATEGORIES,
@@ -31,14 +31,33 @@ const OWNER_FILTERS = [
   { id: 'others', label: 'Not mine', matches: (item) => !item.mine },
 ];
 
+/** First entry in the category row; not a real category, so it can't collide with one. */
+const ALL_CATEGORIES = 'All';
+
+/**
+ * Free-text match across the fields a row actually shows: its name and its owner.
+ *
+ * Category is deliberately not searched — it has its own filter directly above the box, and
+ * folding it in here would make typing "seating" quietly override a category button the user
+ * had already set.
+ */
+function matchesQuery(item, query) {
+  if (!query) return true;
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return (
+    item.name.toLowerCase().includes(needle) ||
+    (item.owner_name || '').toLowerCase().includes(needle)
+  );
+}
+
 /**
  * Whether this account may change an entry — `editable` straight off the item, not re-derived.
  *
- * Two different things make it true server-side: your own uploads are yours, and the built-in
- * entries belong to nobody, so anyone signed in can attach their GLBs. Someone else's shared
- * upload is placeable but not editable. Deriving that here from `mine || built_in` is exactly
- * the bug this replaced — it disagreed with the server on owner-less rows — so the rule stays
- * in one place and this just reads the answer.
+ * Server-side that means "you uploaded it": built-in pieces are read-only to everyone, and
+ * someone else's shared upload is placeable but not editable. Deriving it here from
+ * `mine || built_in` is exactly the bug this replaced — it disagreed with the server on
+ * owner-less rows — so the rule stays in one place and this just reads the answer.
  */
 function canEdit(item) {
   return item.editable;
@@ -104,6 +123,8 @@ function FileField({ id, label, inputRef, accept, file, hint, onPick }) {
 export default function CatalogAdmin() {
   const [items, setItems] = useState([]);
   const [ownerFilter, setOwnerFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState(ALL_CATEGORIES);
+  const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -138,10 +159,34 @@ export default function CatalogAdmin() {
     ? items.find((i) => i.id === editingId)
     : null;
 
+  /**
+   * Search and category applied, owner not yet. The owner tabs count off *this* list rather
+   * than off everything, so "Mine 3" means three results one click away — not three somewhere
+   * in the catalog behind a search that hides them.
+   */
+  const searched = useMemo(
+    () =>
+      items.filter(
+        (item) =>
+          (categoryFilter === ALL_CATEGORIES || item.category === categoryFilter) &&
+          matchesQuery(item, query)
+      ),
+    [items, categoryFilter, query]
+  );
+
   const visibleItems = useMemo(() => {
     const filter = OWNER_FILTERS.find((f) => f.id === ownerFilter) ?? OWNER_FILTERS[0];
-    return items.filter(filter.matches);
-  }, [items, ownerFilter]);
+    return searched.filter(filter.matches);
+  }, [searched, ownerFilter]);
+
+  const filtering =
+    query.trim() !== '' || categoryFilter !== ALL_CATEGORIES || ownerFilter !== 'all';
+
+  const clearFilters = () => {
+    setQuery('');
+    setCategoryFilter(ALL_CATEGORIES);
+    setOwnerFilter('all');
+  };
 
   const startCreate = () => {
     setError('');
@@ -375,22 +420,17 @@ export default function CatalogAdmin() {
               )}
             </div>
 
-            {/* Visibility. Seeded entries have no owner to keep them private for, so the
-                control is shown disabled rather than hidden — hiding it would make the row
-                look like it was missing a setting the others have. */}
+            {/* Visibility. This form only ever opens on a piece you uploaded — built-ins are
+                read-only and have no Edit button — so there's no locked variant to render. */}
             <div className="md:col-span-2">
               <span className="block font-heading text-[9px] uppercase text-[#1e40af] mb-1.5">
                 Visibility
               </span>
-              <label
-                className={`flex items-start gap-3 p-3 border-2 border-[#1e40af] bg-[#cbd5e1] ${
-                  editingItem?.built_in ? 'opacity-60' : 'cursor-pointer'
-                }`}
-              >
+              <label className="flex items-start gap-3 p-3 border-2 border-[#1e40af] bg-[#cbd5e1] cursor-pointer">
                 <input
                   type="checkbox"
                   checked={draft.is_public}
-                  disabled={busy || editingItem?.built_in}
+                  disabled={busy}
                   onChange={(e) => setDraft({ ...draft, is_public: e.target.checked })}
                   className="mt-0.5 w-4 h-4 flex-shrink-0 accent-[#3b82f6]"
                 />
@@ -400,9 +440,7 @@ export default function CatalogAdmin() {
                     Share with everyone
                   </span>
                   <span className="block font-mono text-[10px] text-[#5a6c80] mt-1">
-                    {editingItem?.built_in
-                      ? 'Built-in pieces are always available to everyone.'
-                      : draft.is_public
+                    {draft.is_public
                       ? 'Anyone can place this piece in their rooms. Only you can edit or delete it.'
                       : 'Only you can see this piece. It stays out of everyone else’s catalog.'}
                   </span>
@@ -446,29 +484,87 @@ export default function CatalogAdmin() {
         </div>
       )}
 
-      {/* Owner filter. Counts are on the tabs because "Mine" being empty and "Mine" being
-          broken look identical without them. */}
-      <div className="flex flex-wrap items-center gap-1 mb-4">
-        {OWNER_FILTERS.map((filter) => {
-          const count = items.filter(filter.matches).length;
-          const active = filter.id === ownerFilter;
-          return (
+      {/* Search + filters. All three narrow the same list and compose, so the result count
+          below is the only honest way to say what's on screen. */}
+      <div className="mb-4 p-3 bg-[#e2e8f0] border-2 border-[#1e40af] space-y-3">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#5a6c80] pointer-events-none" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name or owner…"
+            aria-label="Search the catalog"
+            className="w-full pl-9 pr-3 py-2 bg-[#cbd5e1] border-2 border-[#1e40af] font-mono text-sm text-[#252525] placeholder:text-[#5a6c80] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
+          />
+        </div>
+
+        <div>
+          <span className="block font-heading text-[9px] uppercase text-[#1e40af] mb-1.5">
+            Category
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {[ALL_CATEGORIES, ...CATEGORIES].map((category) => (
+              <button
+                key={category}
+                onClick={() => setCategoryFilter(category)}
+                className={`px-2.5 py-1 font-terminal text-base uppercase border-2 border-[#1e40af] transition-colors ${
+                  category === categoryFilter
+                    ? 'bg-[#3b82f6] text-white'
+                    : 'bg-[#e2e8f0] text-[#252525] hover:bg-[#cbd5e1]'
+                }`}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <span className="block font-heading text-[9px] uppercase text-[#1e40af] mb-1.5">
+            Owner
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {/* Counts come off `searched`, not `items` — a tab reading 0 then means "nothing
+                here matches what you've already typed", which is the useful reading. Without
+                them, "Mine" being empty and "Mine" being broken look identical. */}
+            {OWNER_FILTERS.map((filter) => {
+              const count = searched.filter(filter.matches).length;
+              const active = filter.id === ownerFilter;
+              return (
+                <button
+                  key={filter.id}
+                  onClick={() => setOwnerFilter(filter.id)}
+                  className={`px-2.5 py-1 font-terminal text-base uppercase border-2 border-[#1e40af] transition-colors ${
+                    active
+                      ? 'bg-[#3b82f6] text-white'
+                      : 'bg-[#e2e8f0] text-[#252525] hover:bg-[#cbd5e1]'
+                  }`}
+                >
+                  {filter.label}
+                  <span className={`ml-2 font-mono text-[10px] ${active ? 'text-white/80' : 'text-[#5a6c80]'}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <p className="font-mono text-[11px] text-[#5a6c80]">
+            Showing {visibleItems.length} of {items.length}
+          </p>
+          {filtering && (
             <button
-              key={filter.id}
-              onClick={() => setOwnerFilter(filter.id)}
-              className={`px-3 py-1.5 font-terminal text-base uppercase border-2 border-[#1e40af] transition-colors ${
-                active
-                  ? 'bg-[#3b82f6] text-white'
-                  : 'bg-[#e2e8f0] text-[#252525] hover:bg-[#cbd5e1]'
-              }`}
+              onClick={clearFilters}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#e2e8f0] text-[#252525] font-terminal text-base uppercase border-2 border-[#1e40af] hover:bg-[#cbd5e1] transition-colors"
             >
-              {filter.label}
-              <span className={`ml-2 font-mono text-[10px] ${active ? 'text-white/80' : 'text-[#5a6c80]'}`}>
-                {count}
-              </span>
+              <X className="w-3.5 h-3.5" />
+              Clear
             </button>
-          );
-        })}
+          )}
+        </div>
       </div>
 
       {/* Items table */}
@@ -495,11 +591,18 @@ export default function CatalogAdmin() {
             {!loading && visibleItems.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center font-mono text-sm text-[#5a6c80]">
+                  {/* Three distinct dead ends, and telling them apart is the whole point: an
+                      empty catalog, a search that found nothing, and a filter combination
+                      that happens to be empty each need a different next move. */}
                   {items.length === 0
                     ? 'The catalog is empty. Add an item to get started.'
+                    : query.trim()
+                    ? `Nothing matches “${query.trim()}”.`
                     : ownerFilter === 'mine'
-                    ? "You haven't uploaded anything yet."
-                    : 'Nothing here.'}
+                    ? categoryFilter === ALL_CATEGORIES
+                      ? "You haven't uploaded anything yet."
+                      : `You haven't uploaded anything in ${categoryFilter}.`
+                    : `No ${categoryFilter === ALL_CATEGORIES ? '' : `${categoryFilter} `}pieces here.`}
                 </td>
               </tr>
             )}

@@ -18,14 +18,17 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *   <li>{@code built_in} — does it belong to the app rather than to a person?
  * </ul>
  *
- * <p>{@code mine} and {@code editable} are deliberately not the same question. An app-owned
- * entry is editable by anyone signed in — attaching its GLB is shared setup work — but it is
- * nobody's, so it isn't "mine" and doesn't show under the "Mine" filter.
+ * <p>{@code editable} currently equals {@code mine}, since built-in pieces are read-only to
+ * everyone. It stays a separate field rather than collapsing into {@code mine} because the two
+ * answer different questions — "did I upload it" and "may I change it" — and they have already
+ * diverged once: built-ins used to be editable by anyone. Keeping them apart means a future
+ * change to the permission rule is one line in {@code CatalogService.requireEditable} plus one
+ * here, with no frontend change at all.
  *
- * <p>{@code editable} exists so that rule lives in exactly one place. The frontend used to
- * re-derive it from {@code mine || built_in} and got it wrong on rows with no owner and a
- * false {@code built_in} column — which a database that predates the seeder's flag is full of.
- * The server enforces the rule, so the server reports it.
+ * <p>That is also why the frontend must not re-derive it. It used to compute
+ * {@code mine || built_in} and got it wrong on rows with no owner and a false {@code built_in}
+ * column — which a database predating the seeder's flag is full of. The server enforces the
+ * rule, so the server reports it.
  */
 public record CatalogItemResponse(
         String id,
@@ -67,8 +70,9 @@ public record CatalogItemResponse(
                 // display string, not a stored owner — the column stays null.
                 appOwned ? "Refurnish" : owner.getDisplayName(),
                 mine,
-                // Mirrors CatalogService.requireEditable exactly.
-                appOwned || mine
+                // Mirrors CatalogService.requireEditable exactly: built-ins are nobody's to
+                // change, so only your own uploads are editable.
+                mine
         );
     }
 
